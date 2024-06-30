@@ -1,0 +1,8 @@
+{
+  "n_arms": 5,
+  "n_rounds": 1000,
+  "environment": "StandardEnvironment",
+  "reward_function": "BernoulliReward",
+  "algorithm": "UCBAgent",
+  "causal_structure": "None"
+}
