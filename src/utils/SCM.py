@@ -5,6 +5,7 @@ import numpy as np
 # Parse SCM specification from JSON file
 def parse_scm(input):
     data = json.loads(input)
+    nodes = data['nodes']
     functions = data['functions']
     noise = data['noise']
 
@@ -12,7 +13,7 @@ def parse_scm(input):
     G.add_nodes_from(data['nodes'])
     G.add_edges_from(data['edges'])
 
-    return G, functions, noise
+    return nodes, G, functions, noise
 
 
 """
@@ -35,10 +36,8 @@ Example JSON input
 
 
 class SCM:
-    def __init__(self, G, F, N):
-        self.G = G
-        self.F = F
-        self.N = N
+    def __init__(self, input):
+        self.nodes, self.G, self.F, self.N = parse_scm(input)
         self.interventions = {}
 
 
@@ -85,7 +84,7 @@ class SCM:
         """Infer the values of the exogenous variables given observational data"""
         noise_data = {}
         for X_j in self.G.nodes:
-            f_j = eval(self.F[f_j])
+            f_j = eval(self.F[X_j])
             pa_j = list(self.G.predecessors(X_j))
             parents_data = [L1[parent] for parent in pa_j]
             inferred_noise = L1[X_j] - f_j(*parents_data)
@@ -98,7 +97,8 @@ class SCM:
         noise_data = self.abduction(L1)
 
         # Step 2: Action - Intervene within the observationally constrained SCM
-        L2 = self.intervene(intervetions, n_samples)
+        self.intervene(intervetions)
+        L2 = self.sample(n_samples)
 
         # Step 3: Prediction - Generate samples in the modified model
         L3 = {node: np.zeros(n_samples) for node in self.G.nodes}
@@ -118,4 +118,4 @@ class SCM:
     def visualize(self):
         pos = nx.spring_layout(self.G)
         nx.draw(self.G, pos, with_labels=True, node_size=1000, node_color='lightblue', font_size=10, font_weight='bold')
-        plt.show()
+        nx.show()
