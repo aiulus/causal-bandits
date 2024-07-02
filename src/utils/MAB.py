@@ -1,4 +1,7 @@
 import numpy as np
+import sys
+
+sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
 
 class Bernoulli_MAB:
     def __init__(self, n_arms, p_true):
@@ -106,5 +109,46 @@ class Linear_MAB:
         if arm_index < 0 or arm_index >= self.n_arms:
             raise IndexError("Arm index out of bounds.")
         return self.contexts[arm_index]
+import numpy as
+class CausalBandit:
+    def __init__(self, scm, reward_variable):
+        """
 
+        :param scm: Structural Causal Model
+        :param reward_variable: The variable in graph G that represents the reward (Y)
+        """
+        self.scm = scm
+        self.reward_variable = reward_variable
 
+    def intervene(self, interventions):
+        """
+        Perform an atomic intervention by setting the specified variables to the given values.
+        :param interventions: Dictionary with {variable_index : value_to_set_variable}
+        """
+        self.scm.intervene(interventions)
+        self.scm.sample(1) # Updata the SCM with the intervention
+
+    def get_reward(self):
+        """
+        Get the reward value based on the current observe values.
+        :return: Reward value
+        """
+        observed_values = self.scm.sample(1)
+        return observed_values[self.reward_variable][0]
+
+    def get_observed_values(self):
+        """
+        Get the current observed values of all variables
+        :return: Dictionary containing current observed values of all variables
+        """
+        return self.scm.sample(1)
+
+    def expected_reward(self, interventions, sample_size=1000):
+        """
+        Calculate the expected reward for a given set of interventions
+        :param interventions: Dictionary with keys as variables and values as the values to set
+        :return: Expected reward value
+        """
+        self.intervene(interventions)
+        rewards = [self.get_reward() for _ in range(sample_size)]
+        return np.mean(rewards)

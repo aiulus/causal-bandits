@@ -2,9 +2,16 @@ import json
 import networkx as nx
 import numpy as np
 
-# Parse SCM specification from JSON file
 def parse_scm(input):
-    data = json.loads(input)
+    if isinstance(input, str):
+        # JSON input
+        data = json.loads(input)
+    elif isinstance(input, dict):
+        # Dictionary input
+        data = input
+    else:
+        raise ValueError("Input must be a JSON string or a dictionary")
+
     nodes = data['nodes']
     functions = data['functions']
     noise = data['noise']
@@ -15,31 +22,10 @@ def parse_scm(input):
 
     return nodes, G, functions, noise
 
-
-"""
-Example JSON input
-        json_input = '''
-{
-    "nodes": ["X1", "X2", "Y"],
-    "edges": [["X1", "Y"], ["X2", "Y"]],
-    "functions": {
-        "Y": "lambda x1, x2: 2*x1 + 3*x2"
-    },
-    "noise": {
-        "X1": "np.random.normal(0, 1)",
-        "X2": "np.random.normal(0, 1)",
-        "Y": "np.random.normal(0, 1)"
-    }
-}
-'''    
-"""
-
-
 class SCM:
     def __init__(self, input):
         self.nodes, self.G, self.F, self.N = parse_scm(input)
         self.interventions = {}
-
 
     def intervene(self, interventions):
         """Perform interventions on multiple variables.
@@ -48,22 +34,19 @@ class SCM:
         """
         for variable, func in interventions.items():
             self.interventions[variable] = func
-    def sample(self, n_samples):
-        """Generate random samples form the SCM"""
-        data = {}
 
-        # Initialize each node in the graph
-        for X_j in self.G.nodes:
-            data[X_j] = np.zeros(n_samples)
+    def sample(self, n_samples=1):
+        """Generate random samples from the SCM"""
+        data = {X_j: np.zeros(n_samples) for X_j in self.G.nodes}
 
         # Apply interventions
         for X_j, f_j in self.interventions.items():
             # For soft interventions
             if callable(f_j):
-                data[X_j] = f_j()
+                data[X_j] = f_j(n_samples)
             # For perfect interventions
             else:
-                data[X_j] = f_j
+                data[X_j] = np.full(n_samples, f_j)
 
         # Generate samples in topological node order
         for X_j in nx.topological_sort(self.G):
@@ -74,9 +57,13 @@ class SCM:
             # Propagate noise
             f_j = eval(self.F[X_j])
             pa_j = list(self.G.predecessors(X_j))
-            parent_data = [data[parent] for parent in pa_j]
+            parent_data = np.array([data[parent] for parent in pa_j])
+            if parent_data.size == 0:
+                parent_data = np.zeros((0, n_samples))
+            else:
+                parent_data = parent_data.T
             # Additive noise
-            data[X_j] = f_j(*parent_data) + noise
+            data[X_j] = f_j(*parent_data.T) + noise
 
         return data
 
@@ -91,13 +78,13 @@ class SCM:
             noise_data[X_j] = inferred_noise
         return noise_data
 
-    def counterfactual(self, L1, intervetions, n_samples):
+    def counterfactual(self, L1, interventions, n_samples):
         """Compute counterfactual distribution given L1-data and an intervention."""
         # Step 1: Abduction - Update the noise distribution given the observations
         noise_data = self.abduction(L1)
 
         # Step 2: Action - Intervene within the observationally constrained SCM
-        self.intervene(intervetions)
+        self.intervene(interventions)
         L2 = self.sample(n_samples)
 
         # Step 3: Prediction - Generate samples in the modified model
@@ -119,3 +106,22 @@ class SCM:
         pos = nx.spring_layout(self.G)
         nx.draw(self.G, pos, with_labels=True, node_size=1000, node_color='lightblue', font_size=10, font_weight='bold')
         nx.show()
+
+
+"""
+Example JSON input
+        json_input = '''
+{
+    "nodes": ["X1", "X2", "Y"],
+    "edges": [["X1", "Y"], ["X2", "Y"]],
+    "functions": {
+        "Y": "lambda x1, x2: 2*x1 + 3*x2"
+    },
+    "noise": {
+        "X1": "np.random.normal(0, 1)",
+        "X2": "np.random.normal(0, 1)",
+        "Y": "np.random.normal(0, 1)"
+    }
+}
+'''    
+"""
