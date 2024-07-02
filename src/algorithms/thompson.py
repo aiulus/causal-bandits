@@ -89,6 +89,48 @@ def thompson_sampling_gaussian(n_arms, n_rounds, bandit):
 
     return rewards
 
+def thompson_sampling_linear(n_arms, n_rounds, bandit):
+    """
+    Runs Thompson Sampling on a given Linear Multi-Armed Bandit instance.
+
+    :param n_arms: Number of arms
+    :param n_rounds: Number of rounds to run the simulation
+    :param bandit: Instance of Linear_MAB
+    :return:
+    """
+    # Get context dimensionality of the given bandit instance
+    context_dim = bandit.context_dim
+    # Initialize parameters
+    alpha = 1.0
+    beta = 1.0
+    A = np.eye(context_dim) / alpha # Precision matrix
+    b = np.zeros(context_dim) # Vector for updating the posterior mean
+
+    rewards = np.zeros(n_rounds)
+
+    for round in range(n_rounds):
+        # Sample parameter vector from the posterior distribution (θ ~ N(A^-1.b, A^-1))
+        theta_sample = np.random.multivariate_normal(np.linalg.solve(A, b), np.linalg.inv(A))
+
+        sampled_rewards = np.zeros(n_arms)
+        for i in range(n_arms):
+            context = bandit.get_context(i)
+            sampled_rewards[i] = np.dot(context, theta_sample)
+
+        a_opt = np.argmax(sampled_rewards)
+        reward = bandit.pull_arm(a_opt)
+
+        # Update the posterior parameters: A <-- A + (x.x^T)/beta, b <-- b + (x.r_A)/beta
+        A += np.outer(context, context) / beta
+        b += context * reward / beta
+
+        rewards[round] = reward
+
+    print(f"Total reward after {n_rounds} rounds: {rewards.sum()}")
+    return rewards
+
+
+
 from src.utils import MAB
 def main():
     """
@@ -98,11 +140,17 @@ def main():
 
     parser = argparse.ArgumentParser(description="Run a multi-armed bandit problem with Thompson Sampling.")
     parser.add_argument('--arms', type=int, required=True, help="Number of arms in the bandit problem")
-    parser.add_argument('--p', nargs='+', type=float, required=True, help="True probabilities of each arm.")
     parser.add_argument('--rounds', type=int, default=1000, help="Number of rounds to run the simulation.")
-    parser.add_argument('--bandit_type', type=str, choices=['bernoulli', 'gaussian'], required=True, help="Type of bandit problem, currently supported: Bernoulli, Gaussian")
-    parser.add_argument('--means', nargs='+', type=float, help="True means of each arm.")
-    parser.add_argument('--vars', nargs='+', type=float, help="True variances of each arm.")
+    parser.add_argument('--bandit_type', type=str, choices=['bernoulli', 'gaussian', 'linear'], required=True, help="Type of bandit problem, currently supported: Bernoulli, Gaussian, Linear")
+    # For Bernoulli Bandit
+    parser.add_argument('--p', nargs='+', type=float, required=True, help="True probabilities of each arm (for Bernoulli bandit).")
+    # For Gaussian Bandits
+    parser.add_argument('--means', nargs='+', type=float, help="True means of each arm (for Gaussian bandit).")
+    parser.add_argument('--vars', nargs='+', type=float, help="True variances of each arm (for Gaussian bandit).")
+    # For Linear Bandit
+    parser.add_argument('--theta', nargs='+', type=float, help="True parameter vector for the Linear bandit.")
+    parser.add_argument('--noise-level', type=float, default=0.1, help="Standard deviation of the Gaussian noise (for Linear bandit).")
+    parser.add_argument('--context-dim', type=int, help="Dimensionality of the context vectors (for Linear bandit).")
 
     args = parser.parse_args()
 
@@ -113,6 +161,11 @@ def main():
             if not args.means or not args.vars:
                 raise ValueError("True means and true variances must be provided for Gaussian bandit.")
             bandit = MAB.Gaussian_MAB(args.n_arms, args.means, args.vars)
+        elif args.bandit_type == 'linear':
+            if not args.true_theta or not args.context_dim:
+                raise ValueError("True theta and context dimension must be provided for Linear bandit.")
+            bandit = MAB.Linear_MAB(args.n_arms, args.context_dim, np.array(args.true_theta), args.noise_level)
+            thompson_sampling_linear(args.n_arms, args.n_rounds, bandit)
         else:
             raise ValueError("Unsupported Bandit Type.")
         thompson_sampling_gaussian(args.arms, args.rounds, bandit)

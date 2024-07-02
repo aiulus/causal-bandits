@@ -66,3 +66,45 @@ class Gaussian_MAB:
     def get_arms(self):
         return self.n_arms
 
+class Linear_MAB:
+    def __init__(self, n_arms, context_dim, theta, epsilon=0.1):
+        """
+        Defines a Linear Bandit instance where each arm is associated with a d-dimensional real-valued
+        feature vector. The reward r_A for pulling arm A is given by: r_A = x_A^T.θ + Ɛ,
+        where θ theta is a d-dimensional parameter vector unknown to the agent and Ɛ is noise.
+
+        :param n_arms: Number of arms
+        :param context_dim: Dimensionality of the context vectors
+        :param theta: True parameter vector for the linear model
+        :param epsilon: Standard deviation of the Gaussian noise added to the rewards
+        """
+        self.n_arms = n_arms
+        self.context_dim = context_dim
+        self.theta = theta
+        self.epsilon = epsilon
+        # Initialize context/feature vectors with random values drawn from a standard normal distribution
+        self.contexts = np.random.randn(n_arms, context_dim)
+
+    def pull_arm(self, arm_index):
+        """
+        Simulates pulling an arm and returns a reward.
+
+        :param arm_index: Index of the arm to pull
+        :return: Reward (dot-product of context and true theta + noise)
+        """
+        if arm_index < 0 or arm_index >= self.n_arms:
+            raise IndexError("Arm index out of bounds.")
+        # Adding some Gaussian Noise
+        noise = np.random.normal(0, self.epsilon)
+
+        # Return r_A = x_A^T.θ + Ɛ
+        return np.dot(self.contexts[arm_index], self.theta) + noise
+
+    def get_arms(self):
+        return self.n_arms
+    def get_context(self, arm_index):
+        if arm_index < 0 or arm_index >= self.n_arms:
+            raise IndexError("Arm index out of bounds.")
+        return self.contexts[arm_index]
+
+
