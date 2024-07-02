@@ -109,7 +109,7 @@ class Linear_MAB:
         if arm_index < 0 or arm_index >= self.n_arms:
             raise IndexError("Arm index out of bounds.")
         return self.contexts[arm_index]
-import numpy as
+
 class CausalBandit:
     def __init__(self, scm, reward_variable):
         """
