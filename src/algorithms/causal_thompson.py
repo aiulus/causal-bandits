@@ -1,8 +1,10 @@
-import numpy as np
-from scipy.stats import beta
-import sys
-sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
+import json
 
+import numpy as np
+from scipy.stats import beta, dirichlet
+import sys, argparse
+sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
+from src.utils import MAB, SCM
 """
 Implements the Causal Thompson Sampling algorithm as defined in
 @inproceedings{NIPS2015_795c7a7a,
@@ -105,3 +107,119 @@ def causal_thompson_sampling(bandit, T, p_obs):
         probs[t] = a_opt == best_action
 
     return actions, rewards, probs, conds
+
+"""
+Online Causal Thompson Sampling Algorithm based on
+@inproceedings{Sachidananda2017OnlineLF,
+  title={Online Learning for Causal Bandits},
+  author={Vin Sachidananda and Emma Brunskill},
+  year={2017},
+  url={https://api.semanticscholar.org/CorpusID:26215248}
+}
+"""
+def online_causal_TS(bandit, T, pa_Y):
+    """
+
+    :param bandit: An instance of Causal_MAB
+    :param T: Time horizon
+    :param pa_Y: Set containing parent nodes of the reward variable
+    """
+    # TODO: Describe the algorithm
+    N = len(pa_Y)
+
+    # Initialize Beta and Dirichlet distributions
+    beta_params = np.ones((2**N, 2)) # Beta(1,1)
+    dirichlet_params = np.ones((2, 2^N)) # Dirichlet(1)
+
+    # Initialize vectors to keep track of successes and failures
+    S = np.zeros(2**N)
+    F = np.zeros(2**N)
+
+    # Initialize lists to track actions and rewards for each time step
+    actions = []
+    rewards = []
+
+    # Convert a state list of parent variables to an index
+    def state_to_index(state):
+        return sum([state[i] * (2**i) for i in range(len(state))])
+
+    for t in range(T):
+        mu_a = np.zeros(2) # For storing the expected reward for each action
+        for a in range(2):
+            # TODO: refactor variable names
+            pa_Y_Z = dirichlet.rvs(dirichlet_params[a])[0]
+            p_Y_given_pa_Y_Z = [beta.rvs(beta_params[k, 0], beta_params[k, 1]) for k in range(2**N)]
+            # Calculate the expected reward for action 'a' by summing over the states of the parent variables
+            mu_a[a] = np.sum([p_Y_given_pa_Y_Z[k] * pa_Y_Z[k] for k in range(2 ** N)])
+
+        # Choose the action yielding the maximum expected reward
+        a_t = np.argmax(mu_a)
+
+        # Sample the observed values for the parent variables
+        X_c = bandit.get_observed_values()
+        # Determine the state of the parent variables after the intervention
+        Z_k = set(X_c) | {a_t}
+        # Simulate the reward based on the expected reward for the chosen action
+        Y_t = np.random.binomial(1, mu_a[a_t])
+
+        # Update the Dirichlet distribution for the chosen action and state
+        dirichlet_params[a_t, list(Z_k)] += 1
+
+        # Update the Beta distribution based on the observed reward
+        if Y_t == 1:
+            S[list(Z_k)] += 1
+        else:
+            F[list(Z_k)] += 1
+
+        # Update Beta parameters for each state in Z_k
+        for k in list(Z_k):
+            beta_params[k] = [S[k] + 1, F[k] + 1]
+
+        actions.append(a_t)
+        rewards.append(Y_t)
+
+    return actions, rewards
+
+def main():
+    parser = argparse.ArgumentParser(description="Run a causal bandit problem with Thompson Sampling.")
+    parser.add_argument('--reward', type=str, required=True, help="Reward variable in SCM.")
+    parser.add_argument('--rounds', type=int, default=1000, help="Time horizon.")
+    parser.add_argument('--algorithm', type=str, choices=['C-TS', 'OC-TS'])
+    parser.add_argument('--obs', nargs='+', type=float, required=True, help='Observed probability distribution for the arms.')
+    parser.add_argument('--pa_Y', nargs='+', help="Set containing the parents nodes of the reward variable.")
+    parser.add_argument('--json', type=str, help="Path to the JSON file describing the SCM.")
+
+    args = parser.parse_args()
+
+    if args.json:
+        try:
+            with open(args.json, 'r') as file:
+                scm_json = json.load(file)
+        except FileNotFoundError:
+            print(f"Error: This file {args.json} was not found.")
+            return
+        except json.JSONDecodeError:
+            print("Error: Failed to decode JSON from the provided file.")
+
+    scm = SCM(scm_json)
+    Y = args.reward
+    T = args.rounds
+    P_X = np.array(args.obs).reshape(2, 2)
+
+    bandit = MAB.CausalBandit(scm, Y)
+
+    if args.algorithm == 'C-TS':
+        act, rew, probs, cond = causal_thompson_sampling(bandit, P_X)
+    elif args.algorithm == 'OC-TS':
+        if not args.pa_Y:
+            raise ValueError("Parent nodes of the reward variable must be provided for Online Causal Thompson Sampling.")
+        pa_Y = args.pa_Y
+        act, rew = online_causal_TS(bandit, T, pa_Y)
+    else:
+        raise ValueError("Unsupported algorithm type.")
+
+    print("Actions taken: ", act)
+    print("Rewards obtained: ", rew)
+
+if __name__ == "__main__":
+    main()
