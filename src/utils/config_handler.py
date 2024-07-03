@@ -1,3 +1,4 @@
+# TODO: Currently not necessary, factor out what you need and throw away
 import json
 from environment.environment import StandardEnvironment
 from environment.reward_functions import bernoulli_reward, gaussian_reward

@@ -1,3 +1,5 @@
+# TODO: Currently not necessary, factor out what you need and throw away
+
 import numpy as np
 
 class StandardEnvironment:
