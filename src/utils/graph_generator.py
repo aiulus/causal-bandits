@@ -32,6 +32,74 @@ def generate_random_dag(n, p):
     G.add_edges_from(edges) # Add edges
     return G
 
+def erdos_with_properties(n, p, n_pa_Y=None, confs=None, vstr=None):
+    """
+    Generate a random DAG G=(V,Ɛ) with certain properties using the Erdős–Rényi model.
+
+    :param n: Number of nodes in the graph.
+    :param p: Probability of including one of the binomial(n, 2) potential edges in Ɛ.
+    :param n_pa_Y: Cardinality of the parent set of reward node Y.
+    :param confs: Number of confounding variables.
+    :param vstr: Number of v-structures.
+    :return: Graph G.
+    """
+    G = generate_random_dag(n, p)
+
+    # Ensure that the number of confounders in the graph is same as 'confs'
+    if confs is not None:
+        n_confs = count_confounders(G)
+        while n_confs < confs:
+            add_confounders(G)
+    # Ensure the specified number of v-structures
+    if vstr is not None:
+        n_vs = count_v_structures(G)
+        while n_vs < vstr:
+            add_v_structures(G)
+
+    # TODO: Fix the inconsistecy between #nodes when n_pa_Y exercised (n+1) and when not (n)
+    # Ensure a specific number of parent nodes for the reward variable
+    if n_pa_Y is not None:
+        y = n
+        pa_Y = random.sample(G.nodes, n_pa_Y)
+        for parent in pa_Y:
+            G.add_edge(parent, y)
+
+    return G
+
+def count_confounders(G):
+    """
+    O(n^3) - complex in the number of nodes. Don't use with denser graphs.
+    :return: Confounder count in the provided graph.
+    """
+    n_confounders = 0
+    # For each node u in the graph
+    for u in G.nodes:
+        ch_u = list(G.successors(u))
+        # Check if any pair of u's children are connected by a directed edge
+        for i in range(len(ch_u)):
+            for j in range(i + 1, len(ch_u)):
+                v, w = ch_u[i], ch_u[j]
+                if nx.has_path(G, v, w) or nx.has_path(G, w, v):
+                    n_confounders += 1
+                    # One such structure suffices to mark u as a confounder
+                    break
+    return n_confounders
+
+def count_v_structures(G):
+    """
+        O(n^3) - complex in the number of nodes. Don't use with denser graphs.
+        :return: v-structure count in the provided graph.
+        """
+    n_v = 0
+    for v in G.nodes:
+        pa_v = list(G.predecessors(v))
+        for i in range(len(pa_v)):
+            for j in range(i + 1, len(pa_v)):
+                u, w, = pa_v[i], pa_v[j]
+                if not G.has_edge(u, w) and not G.has_edge(w, u):
+                    n_v += 1
+    return n_v
+
 def add_confounders(G, num_confounders):
     """
     Add confounders to the graph
@@ -44,6 +112,7 @@ def add_confounders(G, num_confounders):
         u, v = random.sample(nodes, 2)
         if not G.has_edge(u, v) and not G.has_edge(v, u):
             G.add_edge(u, v)
+
 
 def add_v_structures(G, num_v_structures):
     """
