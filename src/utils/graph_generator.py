@@ -138,18 +138,30 @@ def main():
     parser.add_argument("--graph_type", action="store_true", choices=['chain', 'parallel', 'random'],
                         help="Type of graph structure to generate. Currently supported: ['chain', 'parallel', 'random']")
     parser.add_argument("--n", type=int, required=True, help="Number of (non-reward) nodes in the graph.")
+    parser.add_argument("--p", type=int, required=True, help="Denseness of the graph / prob. of including any potential edge.")
     parser.add_argument("--pa_n", type=int, required=True, default=1, help="Cardinality of pa_Y in G.")
+    parser.add_argument("--vstr", type=int, help="Desired number of v-structures in the causal graph.")
+    parser.add_argument("--conf", type=int, help="Desired number of confounding variables in the causal graph.")
+
     args = parser.parse_args()
+
+    graph_type = args.graph_type
 
     if args.graph_type == 'chain':
         graph = generate_chain_graph(args.n)
     elif args.graph_type == 'parallel':
         graph = generate_parallel_graph(args.n)
+    elif args.graph_type == 'random':
+        if args.p is None:
+            print("Please specify the probability of including an edge with --p for random graph generation.")
+            return
+        graph = erdos_with_properties(args.n, args.p, args.pa_n, args.conf, args.vstr)
+        graph_type = f"random_pa{args.pa_n}_conf{args.conf}_vstr{args.vstr}"
     else:
-        print("Please specify a type of graph. Currently supported: ['chain', 'parallel']")
+        print("Please specify a type of graph. Currently supported: ['chain', 'parallel', 'random']")
         return
 
-    save_graph(graph, args.graph_type, args.n)
+    save_graph(graph, graph_type, args.n)
     print(f"{args.graph_type.capitalize()} graph with {args.n} nodes saved to {PATH_GRAPHS}.")
 
 if __name__ == "__main__":
