@@ -39,3 +39,36 @@ def UCB1(bandit, rounds):
     print(f"Number of times each arm was played: {counts}")
 
     return rewards, counts
+
+def main():
+    parser = argparse.ArgumentParser(description="Run a multi-armed bandit problem with UCB.")
+    parser.add_argument('--arms', type=int, required=True, help="Number of arms in the bandit problem.")
+    parser.add_argument('--rounds', type=int, default=1000, help="Number of times to run the simulation.")
+    parser.add_argument('--bandit-type', type=str, choices=['bernoulli', 'gaussian'], required="True",
+                        help="Type of bandit problem - currently supported: Bernoulli, Gaussian")
+    # For Bernoulli_MAB
+    parser.add_argument('--p', nargs='+', type=float, help="Success probabilities for each arm (for Bernoulli bandit).")
+    # For Gaussian_MAB
+    parser.add_argument('--means', nargs='+', type=float, help="True means of each arm (for Gaussian bandit).")
+    parser.add_argument('--vars', nargs='+', type=float, help="True variances of each arm (for Gaussian bandit).")
+
+    args = parser.parse_args()
+
+    try:
+        if args.bandit_type == 'bernoulli':
+            if not args.p:
+                raise ValueError("Probabilities of success must be provided for Bernoulli bandit.")
+            bandit = MAB.Bernoulli_MAB(args.arms, args.p)
+        elif args.bandit_type == 'gaussian':
+            if not args.means or not args.vars:
+                raise ValueError("True means and true variances must be provided for Gaussian bandit.")
+            bandit = MAB.Gaussian_MAB(args.arms, args.means, args.vars)
+        else:
+            raise ValueError("Unsupported Bandit Type. Currently supported: ['bernoulli', 'gaussian']")
+        UCB1(bandit, args.rounds)
+    except Exception as e:
+        print(f"Error: {e}")
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()
