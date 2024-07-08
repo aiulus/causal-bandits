@@ -9,21 +9,28 @@ from networkx.readwrite import json_graph
 PATH_GRAPHS = "../../data/graphs"
 
 
-def generate_chain_graph(n):
+def generate_chain_graph(n, save=False):
     nodes = [f"X{i}" for i in range(1, n + 1)] + ["Y"]
     edges = [[nodes[i], nodes[i + 1]] for i in range(n)]
-    return {"nodes": nodes, "edges": edges}
+    G = {"nodes": nodes, "edges": edges}
+    if save:
+        save_graph(G, 'chain', n)
+    return G
 
 
-def generate_parallel_graph(n):
+def generate_parallel_graph(n, save=False):
     nodes = [f"X{i}" for i in range(1, n + 1)] + ["Y"]
     edges = [[nodes[i], "Y"] for i in range(n)]
-    return {"nodes": nodes, "edges": edges}
+    G = {"nodes": nodes, "edges": edges}
+    if save:
+        save_graph(G, 'parallel', n)
+    return G
 
 
-def generate_random_dag(n, p):
+def generate_random_dag(n, p, save=False):
     """
     Generate a random DAG G=(V,Ɛ), using the Erdős–Rényi model.
+    :param save:
     :param n: Number of nodes in the graph.
     :param p: Probability of including one of the binomial(n, 2) potential edges in Ɛ.
     :return: Graph G.
@@ -35,6 +42,12 @@ def generate_random_dag(n, p):
     G.add_nodes_from(nodes)  # Add nodes
     edges = [(u, v) for u in nodes for v in nodes if u < v and random.random() < p]  # Include edges with probability p
     G.add_edges_from(edges)  # Add edges
+    if save:
+        file_path = f"{PATH_GRAPHS}/random_graph_N{n}_p_{p}"
+        graph_data = json_graph.node_link_data(G)
+        with open(file_path, 'w') as f:
+            json.dump(graph_data, f)
+        print(f"Random graph saved to {file_path}")
     return G
 
 
@@ -147,6 +160,7 @@ def save_graph(graph, graph_type, n):
     file_path = f"{PATH_GRAPHS}/{graph_type}_graph_N{n}.json"
     with open(file_path, "w") as f:
         json.dump(graph, f, indent=2)
+    print(f"{graph_type.capitalize()} graph with {n} nodes saved to {file_path}.")
 
 
 def main():
@@ -167,9 +181,9 @@ def main():
     graph_type = args.graph_type
 
     if args.graph_type == 'chain':
-        graph = generate_chain_graph(args.n)
+        graph = generate_chain_graph(args.n, args.save)
     elif args.graph_type == 'parallel':
-        graph = generate_parallel_graph(args.n)
+        graph = generate_parallel_graph(args.n, args.save)
     elif args.graph_type == 'random':
         if args.p is None:
             print("Please specify the probability of including an edge with --p for random graph generation.")
@@ -181,10 +195,6 @@ def main():
     else:
         print("Please specify a type of graph. Currently supported: ['chain', 'parallel', 'random']")
         return
-
-    if args.save:
-        save_graph(graph, graph_type, args.n)
-        print(f"{args.graph_type.capitalize()} graph with {args.n} nodes saved to {PATH_GRAPHS}.")
 
 
 if __name__ == "__main__":
