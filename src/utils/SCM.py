@@ -1,9 +1,14 @@
 import argparse
+import ast
 import json
+import types
+
 import networkx as nx
 import numpy as np
 from scipy.stats import norm, bernoulli, expon
+import matplotlib.pyplot as plt
 import sys
+import os
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
 import graph_generator
@@ -205,31 +210,50 @@ class SCM:
     def visualize(self):
         pos = nx.spring_layout(self.G)
         nx.draw(self.G, pos, with_labels=True, node_size=1000, node_color='lightblue', font_size=10, font_weight='bold')
-        nx.show()
+        plt.show()
 
     def save_to_json(self, file_path):
+        os.makedirs(PATH_SCM, exist_ok=True)
         scm_data = {
-            "nodes": self.nodes,
-            "edges": list(self.G.edges),
-            "functions": self.F,
-            "noise": self.N
+            "nodes": [node for node in self.nodes],
+            "edges": [edge for edge in self.G.edges],
+            "functions": {k: str(v) for k, v in self.F.items()},
+            "noise": {k: str(v) for k, v in self.N.items()}
         }
         with open(file_path, 'w') as f:
             json.dump(scm_data, f, indent=2)
         print(f"SCM saved to {file_path}")
 
+    @staticmethod
+    def func_to_str(func):
+        return func
+    @staticmethod
+    def str_to_func(func_str):
+        return eval(func_str)
+    @classmethod
+    def load_from_json(cls, file_path):
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        data['functions'] = {k: cls.str_to_func(v) for k, v in data['functions'].items()}
+        data['noise'] = {k: cls.str_to_func(v) for k, v in data['noise'].items()}
+        return cls(data)
+
 
 def load_graph(filepath):
     with open(filepath, 'r') as f:
         data = json.load(f)
-    return data
+    G = nx.DiGraph()
+    G.add_nodes_from(data['nodes'])
+    G.add_edges_from(data['edges'])
+    return G
 
 
 def main():
     parser = argparse.ArgumentParser("Structural Causal Model (SCM) operations.")
-    parser.add_argument("--graph_type", action="store_true", choices=['chain', 'parallel', 'random'],
+    parser.add_argument("--graph_type", choices=['chain', 'parallel', 'random'],
                         help="Type of graph structure to generate. Currently supported: ['chain', 'parallel', 'random']")
-    parser.add_argument('--noise_type', type=str, nargs='+', default='gaussian', choices=['gaussian', 'bernoulli', 'exponential'],
+    parser.add_argument('--noise_type', type=str, nargs='+', default='gaussian',
+                        choices=['gaussian', 'bernoulli', 'exponential'],
                         help="Specify the type of noise distributions. Currently "
                              "supported: ['gaussian', 'bernoulli', 'exponential']")
     # TODO: the list must be reshaped from (n_params * n_variables, 1) to (n_params, n_variables) --> dependency: generate_distributions()
@@ -243,9 +267,9 @@ def main():
                              "supported: ['linear', "
                              "'polynomial']")
     parser.add_argument("--n", type=int, required=True, help="Number of (non-reward) nodes in the graph.")
-    parser.add_argument("--p", type=int, required=True,
-                        help="Denseness of the graph / prob. of including any potential edge.")
-    parser.add_argument("--pa_n", type=int, required=True, default=1, help="Cardinality of pa_Y in G.")
+    # Required for --graph_type random
+    parser.add_argument("--p", type=int, help="Denseness of the graph / prob. of including any potential edge.")
+    parser.add_argument("--pa_n", type=int, default=1, help="Cardinality of pa_Y in G.")
     parser.add_argument("--vstr", type=int, help="Desired number of v-structures in the causal graph.")
     parser.add_argument("--conf", type=int, help="Desired number of confounding variables in the causal graph.")
     parser.add_argument("--intervene", type=str, help="JSON string representing interventions to perform.")
@@ -253,30 +277,31 @@ def main():
     args = parser.parse_args()
 
     # TODO: file names for random graphs differ from chain, parallel
-    graph_type = f"random_pa{args.pa_n}_conf{args.conf}_vstr{args.vstr}"
-    file_path = f"{PATH_GRAPHS}/{graph_type}_graph_N{args.n}.json"
+    # graph_type = f"random_pa{args.pa_n}_conf{args.conf}_vstr{args.vstr}"
+    graph_type = f"{args.graph_type}_graph_N{args.n}"
+    file_path = f"{PATH_GRAPHS}/{graph_type}.json"
     if args.graph_type == 'random':
-        file_path = f"{PATH_GRAPHS}/random_graph_N{args.n}_paY_{args.pa_n}_p_{args.p}"
+        graph_type = f"random_graph_N{args.n}_paY_{args.pa_n}_p_{args.p}"
+        file_path = f"{PATH_GRAPHS}/{graph_type}"
     try:
         graph = load_graph(file_path)
-    except FileNotFoundError:
+        print("Successfully loaded the graph file.")
+    except (FileNotFoundError, UnicodeDecodeError):
         print(f"No such file: {file_path}")
-    except Exception as e:
-        print(f"Could not open {file_path}.")
         generate_graph_args = [
             '--graph_type', f"{args.graph_type}",
             '--n', f"{args.n}",
             '--p', f"{args.n}",
             '--pa_n', f"{args.pa_n}",
-            '--vstr', f"{args.vstr}",
-            '--conf', f"{args.conf}"
+            #'--vstr', f"{args.vstr}",
+            #'--conf', f"{args.conf}",
+            '--save'
         ]
         print("Trying again...")
-        graph_generator.main(*generate_graph_args)
-        graph_data = load_graph(file_path)
-        graph = nx.DiGraph()
-        graph.add_nodes_from(graph_data['nodes'])
-        graph.add_edges_from(graph_data['edges'])
+        sys.argv = ['graph_generator.py'] + generate_graph_args
+        graph_generator.main()
+
+        graph = load_graph(file_path)
 
     # TODO: Check if args.n or args.n + 1
     noises = generate_distributions(graph.nodes, args.noise_type, args.noise_params)
@@ -285,13 +310,18 @@ def main():
     scm_data = {
         "nodes": graph.nodes,
         "edges": graph.edges,
-        "functions": functions,
-        "noise": noises
+        "functions": {k: SCM.func_to_str(v) for k, v in functions.items()},
+        "noise": {k: SCM.func_to_str(v) for k, v in noises.items()}
     }
     scm = SCM(scm_data)
     save_path = f"{PATH_SCM}/SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{args.noise_type}-noises.json"
+    # f"{PATH_SCM}/SCM_N5_chain_graph_linear_functions_gaussian_noises.json"
+    # save_path = PATH_SCM
     scm.save_to_json(save_path)
 
+
+if __name__ == '__main__':
+    main()
 
 """
 Example JSON input
