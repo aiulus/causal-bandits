@@ -6,11 +6,11 @@ from scipy.stats import norm, bernoulli, expon
 import sys
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
-import src.utils
 import graph_generator
 
 # Set target destination for .json files containing graph structures
-PATH_GRAPHS = "../../data/graphs"
+PATH_GRAPHS = "../../outputs/graphs"
+PATH_SCM = "../../outputs/SCMs"
 MAX_DEGREE = 3  # For polynomial function generation
 
 
@@ -35,26 +35,29 @@ def parse_scm(input):
     return nodes, G, functions, noise
 
 
-def generate_distributions(n_variables, distr_type, params):
+def generate_distributions(n_variables, distr_type: str, params=None):
     # TODO: make sure that 'params' is generated as a list of lists [[]]
+    # TODO: currently no way of passing a 'params' array in a manageable way
     p_n = {}
+
+    # If the parameters are not specified, use standard values
+    if params is None:
+        params = {
+            'gaussian': {'mu': 0, 'sigma': 1},
+            'bernoulli': {'p': 0.5},
+            'exp': {'lam': 1.0}
+        }
+
     # TODO: too nested
-    for i in n_variables:
-        dist = distr_type[i]
-        if dist == 'gaussian':
-            if params[0].shape[0] != len(n_variables) or params[1].shape[0] != len(n_variables):
-                raise ValueError("The length of the parameter vectors must match the number of nodes.")
-            mu, sigma = params[0], params[1]
+    for i in range(n_variables):
+        if distr_type == 'gaussian':
+            mu, sigma = params['gaussian']['mu'], params['gaussian']['sigma']
             p_n[i] = lambda x, mu=mu, sigma=sigma: norm.rvs(mu, sigma, size=x)
-        elif dist == 'bernoulli':
-            if params[0].shape[0] != len(n_variables):
-                raise ValueError("The length of the parameter vectors must match the number of nodes.")
-            p = params[0]
+        elif distr_type == 'bernoulli':
+            p = params['bernoulli']['p']
             p_n[i] = lambda x, p=p: bernoulli.rvs(p, size=x)
-        elif dist == 'exp':
-            if params[0].shape[0] != len(n_variables):
-                raise ValueError("The length of the parameter vectors must match the number of nodes.")
-            lam = params[0]
+        elif distr_type == 'exp':
+            lam = params['exp']['lam']
             p_n[i] = lambda x, lam=lam: expon.rvs(scale=1 / lam, size=x)
         else:
             raise ValueError(f"Unsupported distribution type:{distr_type}")
@@ -164,7 +167,7 @@ class SCM:
         return data
 
     def abduction(self, L1):
-        """Infer the values of the exogenous variables given observational data"""
+        """Infer the values of the exogenous variables given observational outputs"""
         noise_data = {}
         for X_j in self.G.nodes:
             f_j = eval(self.F[X_j])
@@ -175,7 +178,7 @@ class SCM:
         return noise_data
 
     def counterfactual(self, L1, interventions, n_samples):
-        """Compute counterfactual distribution given L1-data and an intervention."""
+        """Compute counterfactual distribution given L1-outputs and an intervention."""
         # Step 1: Abduction - Update the noise distribution given the observations
         noise_data = self.abduction(L1)
 
@@ -203,6 +206,17 @@ class SCM:
         nx.draw(self.G, pos, with_labels=True, node_size=1000, node_color='lightblue', font_size=10, font_weight='bold')
         nx.show()
 
+    def save_to_json(self, file_path):
+        scm_data = {
+            "nodes": self.nodes,
+            "edges": list(self.G.edges),
+            "functions": self.F,
+            "noise": self.N
+        }
+        with open(file_path, 'w') as f:
+            json.dump(scm_data, f, indent=2)
+        print(f"SCM saved to {file_path}")
+
 
 def load_graph(filepath):
     with open(filepath, 'r') as f:
@@ -214,14 +228,19 @@ def main():
     parser = argparse.ArgumentParser("Structural Causal Model (SCM) operations.")
     parser.add_argument("--graph_type", action="store_true", choices=['chain', 'parallel', 'random'],
                         help="Type of graph structure to generate. Currently supported: ['chain', 'parallel', 'random']")
-    parser.add_argument('--noise_type', type=str, default='gaussian', choices=['gaussian', 'bernoulli', 'exponential'],
-                                                           help="Specify the type of noise distributions. Currently "
-                                                                "supported: ['gaussian', 'bernoulli', 'exponential']")
-    parser.add_argument('--funct_type', type=str, default='linear', choices=['linear', 'polynomial'], help="Specify the function family "
-                                                                                         "to be used in structural "
-                                                                                         "equations. Currently "
-                                                                                         "supported: ['linear', "
-                                                                                         "'polynomial']")
+    parser.add_argument('--noise_type', type=str, nargs='+', default='gaussian', choices=['gaussian', 'bernoulli', 'exponential'],
+                        help="Specify the type of noise distributions. Currently "
+                             "supported: ['gaussian', 'bernoulli', 'exponential']")
+    # TODO: the list must be reshaped from (n_params * n_variables, 1) to (n_params, n_variables) --> dependency: generate_distributions()
+    parser.add_argument('--noise_params', type=float, nargs='+',
+                        help="Specify a list of float parameters for the noise distributions."
+                             "Length of the provided list must match num_params x num_variables")
+    parser.add_argument('--funct_type', type=str, default='linear', choices=['linear', 'polynomial'],
+                        help="Specify the function family "
+                             "to be used in structural "
+                             "equations. Currently "
+                             "supported: ['linear', "
+                             "'polynomial']")
     parser.add_argument("--n", type=int, required=True, help="Number of (non-reward) nodes in the graph.")
     parser.add_argument("--p", type=int, required=True,
                         help="Denseness of the graph / prob. of including any potential edge.")
@@ -229,7 +248,6 @@ def main():
     parser.add_argument("--vstr", type=int, help="Desired number of v-structures in the causal graph.")
     parser.add_argument("--conf", type=int, help="Desired number of confounding variables in the causal graph.")
     parser.add_argument("--intervene", type=str, help="JSON string representing interventions to perform.")
-
 
     args = parser.parse_args()
 
@@ -254,10 +272,25 @@ def main():
         ]
         print("Trying again...")
         graph_generator.main(*generate_graph_args)
-        graph = load_graph(file_path)
+        graph_data = load_graph(file_path)
+        graph = nx.DiGraph()
+        graph.add_nodes_from(graph_data['nodes'])
+        graph.add_edges_from(graph_data['edges'])
+
     functions = generate_functions(graph, args.noise_type, args.funct_type)
     # TODO: Check if args.n or args.n + 1
-    noises = generate_distributions(args.n + 1, args.noise_type)
+    noises = generate_distributions(args.n + 1, args.noise_type, args.noise_params)
+
+    scm_data = {
+        "nodes": graph.nodes,
+        "edges": graph.edges,
+        "functions": functions,
+        "noise": noises
+    }
+    scm = SCM(scm_data)
+    save_path = f"{PATH_SCM}/SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{args.noise_type}-noises.json"
+    scm.save_to_json(save_path)
+
 
 """
 Example JSON input

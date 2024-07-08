@@ -6,7 +6,7 @@ import networkx as nx
 from networkx.readwrite import json_graph
 
 # Set target destination for .json files containing graph structures
-PATH_GRAPHS = "../../data/graphs"
+PATH_GRAPHS = "../../outputs/graphs"
 
 
 def generate_chain_graph(n, save=False):
