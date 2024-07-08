@@ -3,18 +3,23 @@ import json
 import os
 import random
 import networkx as nx
+from networkx.readwrite import json_graph
 
 # Set target destination for .json files containing graph structures
 PATH_GRAPHS = "../../data/graphs"
+
+
 def generate_chain_graph(n):
-    nodes = [f"X{i}" for i in range(1, n+1)] + ["Y"]
-    edges = [[nodes[i], nodes[i+1]] for i in range(n)]
+    nodes = [f"X{i}" for i in range(1, n + 1)] + ["Y"]
+    edges = [[nodes[i], nodes[i + 1]] for i in range(n)]
     return {"nodes": nodes, "edges": edges}
 
+
 def generate_parallel_graph(n):
-    nodes = [f"X{i}" for i in range(1, n+1)] + ["Y"]
+    nodes = [f"X{i}" for i in range(1, n + 1)] + ["Y"]
     edges = [[nodes[i], "Y"] for i in range(n)]
     return {"nodes": nodes, "edges": edges}
+
 
 def generate_random_dag(n, p):
     """
@@ -27,12 +32,13 @@ def generate_random_dag(n, p):
     G = nx.DiGraph()
     # Construct the graph in topological order to ensure DAG'ness
     nodes = list(range(n))
-    G.add_nodes_from(nodes) # Add nodes
-    edges = [(u, v) for u in nodes for v in nodes if u < v and random.random() < p] # Include edges with probability p
-    G.add_edges_from(edges) # Add edges
+    G.add_nodes_from(nodes)  # Add nodes
+    edges = [(u, v) for u in nodes for v in nodes if u < v and random.random() < p]  # Include edges with probability p
+    G.add_edges_from(edges)  # Add edges
     return G
 
-def erdos_with_properties(n, p, n_pa_Y=None, confs=None, vstr=None):
+
+def erdos_with_properties(n, p, n_pa_Y=None, confs=None, vstr=None, save=False):
     """
     Generate a random DAG G=(V,Ɛ) with certain properties using the Erdős–Rényi model.
 
@@ -63,8 +69,14 @@ def erdos_with_properties(n, p, n_pa_Y=None, confs=None, vstr=None):
         pa_Y = random.sample(G.nodes, n_pa_Y)
         for parent in pa_Y:
             G.add_edge(parent, y)
-
+    if save:
+        file_path = f"{PATH_GRAPHS}/random_graph_N{n}_paY_{n_pa_Y}_p_{p}"
+        graph_data = json_graph.node_link_data(G)
+        with open(file_path, 'w') as f:
+            json.dump(graph_data, f)
+        print(f"Random graph saved to {file_path}")
     return G
+
 
 def count_confounders(G):
     """
@@ -85,6 +97,7 @@ def count_confounders(G):
                     break
     return n_confounders
 
+
 def count_v_structures(G):
     """
         O(n^3) - complex in the number of nodes. Don't use with denser graphs.
@@ -99,6 +112,7 @@ def count_v_structures(G):
                 if not G.has_edge(u, w) and not G.has_edge(w, u):
                     n_v += 1
     return n_v
+
 
 def add_confounders(G, num_confounders):
     """
@@ -127,21 +141,26 @@ def add_v_structures(G, num_v_structures):
             G.add_edge(u, v)
             G.add_edge(w, v)
 
+
 def save_graph(graph, graph_type, n):
     os.makedirs(PATH_GRAPHS, exist_ok=True)
     file_path = f"{PATH_GRAPHS}/{graph_type}_graph_N{n}.json"
     with open(file_path, "w") as f:
         json.dump(graph, f, indent=2)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Generate graph structures and save as JSON files.")
-    parser.add_argument("--graph_type", action="store_true", choices=['chain', 'parallel', 'random'],
+    parser.add_argument("--graph_type", choices=['chain', 'parallel', 'random'],
                         help="Type of graph structure to generate. Currently supported: ['chain', 'parallel', 'random']")
     parser.add_argument("--n", type=int, required=True, help="Number of (non-reward) nodes in the graph.")
-    parser.add_argument("--p", type=int, required=True, help="Denseness of the graph / prob. of including any potential edge.")
-    parser.add_argument("--pa_n", type=int, required=True, default=1, help="Cardinality of pa_Y in G.")
+    # Required for option --graph_type random
+    parser.add_argument("--p", type=float, help="Denseness of the graph / prob. of including any potential edge.")
+    # Required for option --graph_type random
+    parser.add_argument("--pa_n", type=int, default=1, help="Cardinality of pa_Y in G.")
     parser.add_argument("--vstr", type=int, help="Desired number of v-structures in the causal graph.")
     parser.add_argument("--conf", type=int, help="Desired number of confounding variables in the causal graph.")
+    parser.add_argument("--save", action='store_true')
 
     args = parser.parse_args()
 
@@ -155,15 +174,18 @@ def main():
         if args.p is None:
             print("Please specify the probability of including an edge with --p for random graph generation.")
             return
-        graph = erdos_with_properties(args.n, args.p, args.pa_n, args.conf, args.vstr)
+        if args.pa_n is None:
+            print("Please specify the cardinality of the parent set for the reward variable Y.")
+        graph = erdos_with_properties(args.n, args.p, args.pa_n, args.conf, args.vstr, args.save)
         graph_type = f"random_pa{args.pa_n}_conf{args.conf}_vstr{args.vstr}"
     else:
         print("Please specify a type of graph. Currently supported: ['chain', 'parallel', 'random']")
         return
 
-    save_graph(graph, graph_type, args.n)
-    print(f"{args.graph_type.capitalize()} graph with {args.n} nodes saved to {PATH_GRAPHS}.")
+    if args.save:
+        save_graph(graph, graph_type, args.n)
+        print(f"{args.graph_type.capitalize()} graph with {args.n} nodes saved to {PATH_GRAPHS}.")
+
 
 if __name__ == "__main__":
     main()
-
