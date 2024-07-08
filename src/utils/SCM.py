@@ -16,6 +16,7 @@ import graph_generator
 # Set target destination for .json files containing graph structures
 PATH_GRAPHS = "../../outputs/graphs"
 PATH_SCM = "../../outputs/SCMs"
+PATH_PLOTS = "../../outputs/plots"
 MAX_DEGREE = 3  # For polynomial function generation
 
 
@@ -218,7 +219,8 @@ class SCM:
             "nodes": [node for node in self.nodes],
             "edges": [edge for edge in self.G.edges],
             "functions": {k: str(v) for k, v in self.F.items()},
-            "noise": {k: str(v) for k, v in self.N.items()}
+            # TODO: Save only the type(s) of distribution for the noises
+            "noise": self.N
         }
         with open(file_path, 'w') as f:
             json.dump(scm_data, f, indent=2)
@@ -237,6 +239,62 @@ class SCM:
         data['functions'] = {k: cls.str_to_func(v) for k, v in data['functions'].items()}
         data['noise'] = {k: cls.str_to_func(v) for k, v in data['noise'].items()}
         return cls(data)
+    def draw_scm(self):
+        G = nx.DiGraph()
+        G.add_nodes_from(self.G.nodes)
+        G.add_edges_from(self.G.edges)
+
+        pos = nx.planar_layout(self.G)
+        # Draw the regular nodes
+        nx.draw_networkx_nodes(self.G, pos, node_color='none', node_size=500)
+        nx.draw_networkx_labels(self.G, pos, font_color='black', font_size=10)
+        # Draw the edges
+        nx.draw_networkx_edges(self.G, pos, edge_color='black')
+
+        # Draw noise nodes
+        noise_nodes = []
+        noise_labels = {}
+        index = 1
+        while index < len(self.N):
+            dist_type = self.N[index]
+            if dist_type == 'N':
+                noise_labels[f"N_{index//4 + 1}"] = f"N_{index//4 + 1} ~ Exp({self.N[index+1]}, {self.N[index+2]}"
+                index += 3
+            elif dist_type == 'Exp':
+                noise_labels[f"N_{index // 4 + 1}"] = f"N_{index // 4 + 1} ~ Exp({self.N[index + 1]})"
+                index += 2
+            elif dist_type == 'Ber':
+                noise_labels[f"N_{index // 4 + 1}"] = f"N_{index // 4 + 1} ~ Ber({self.N[index + 1]})"
+                index += 2
+            noise_nodes.append(f"N_{index//4}")
+
+        # Add noise nodes to the graph
+        for i, node in enumerate(self.nodes):
+            noise_node = f"N_{i + 1}"
+            G.add_node(noise_node)
+            G.add_edge(noise_node, node)
+            pos[noise_node] = (pos[node][0], pos[node][1] + 0.1)
+
+        # Draw the noise nodes
+        nx.draw_networkx_nodes(G, pos, nodelist=noise_nodes, node_shape='o', node_color='black', node_size=500, alpha=0.5)
+        nx.draw_networkx_edges(G, pos, edgelist=[(f"N_{i+1}", self.nodes[i]) for i in range(len(self.nodes))], style='dashed', edge_color='black')
+        nx.draw_networkx_labels(G, pos, labels=noise_labels, font_color='black', font_size=10)
+
+        # Display the functions next to the graph
+        functions = self.F
+        function_text = "\n".join([f"{k}: {v}" for k, v in functions.items()])
+        plt.text(1.05, 0.5, function_text, ha='left', va='center', transform=plt.gca().transAxes)
+
+        # Show the plot
+        plt.title("Structural Causal Model")
+        os.makedirs(PATH_PLOTS, exist_ok=True)
+        plot_filename = os.path.join(PATH_PLOTS, f"SCM_n{len(self.nodes)}_{self.N}-noises.png")
+        plt.savefig(plot_filename, bbox_inches='tight')
+        plt.show()
+
+        print(f"Plot saved to {plot_filename}")
+
+
 
 
 def load_graph(filepath):
@@ -252,15 +310,17 @@ def main():
     parser = argparse.ArgumentParser("Structural Causal Model (SCM) operations.")
     parser.add_argument("--graph_type", choices=['chain', 'parallel', 'random'],
                         help="Type of graph structure to generate. Currently supported: ['chain', 'parallel', 'random']")
-    parser.add_argument('--noise_type', type=str, nargs='+', default='gaussian',
-                        choices=['gaussian', 'bernoulli', 'exponential'],
-                        help="Specify the type of noise distributions. Currently "
-                             "supported: ['gaussian', 'bernoulli', 'exponential']")
+    # TODO: help info
+    parser.add_argument('--noise_types', type=str, nargs='+')
+    #parser.add_argument('--noise_type', type=str, nargs='+', default='gaussian',
+    #                    choices=['gaussian', 'bernoulli', 'exponential'],
+    #                    help="Specify the type of noise distributions. Currently "
+    #                         "supported: ['gaussian', 'bernoulli', 'exponential']")
     # TODO: the list must be reshaped from (n_params * n_variables, 1) to (n_params, n_variables) --> dependency: generate_distributions()
     parser.add_argument('--noise_params', type=float, nargs='+',
                         help="Specify a list of float parameters for the noise distributions."
                              "Length of the provided list must match num_params x num_variables")
-    parser.add_argument('--funct_type', type=str, default='linear', choices=['linear', 'polynomial'],
+    parser.add_argument('--funct_type', type=str, nargs='+', default='linear', choices=['linear', 'polynomial'],
                         help="Specify the function family "
                              "to be used in structural "
                              "equations. Currently "
@@ -273,6 +333,7 @@ def main():
     parser.add_argument("--vstr", type=int, help="Desired number of v-structures in the causal graph.")
     parser.add_argument("--conf", type=int, help="Desired number of confounding variables in the causal graph.")
     parser.add_argument("--intervene", type=str, help="JSON string representing interventions to perform.")
+    parser.add_argument("--plot", action='store_true')
 
     args = parser.parse_args()
 
@@ -304,20 +365,29 @@ def main():
         graph = load_graph(file_path)
 
     # TODO: Check if args.n or args.n + 1
-    noises = generate_distributions(graph.nodes, args.noise_type, args.noise_params)
+    # TODO: Generation of actual distribution functions first during sampling
+    # noises = generate_distributions(graph.nodes, args.noise_types, args.noise_params)
+    # TODO: noises should be specified not only by the names but N(0, 1), Exp(2), Geo(0.25), Ber(0.5), etc.
+    # TODO: 'noises' should be a dictionary indexed by node names
+    noises = args.noise_types
+    if len(args.noise_types) == 1:
+        noises = np.repeat(args.noise_types, args.n + 1)
     functions = generate_functions(graph, noises, args.funct_type)
 
     scm_data = {
         "nodes": graph.nodes,
         "edges": graph.edges,
         "functions": {k: SCM.func_to_str(v) for k, v in functions.items()},
-        "noise": {k: SCM.func_to_str(v) for k, v in noises.items()}
+        "noise": noises
     }
     scm = SCM(scm_data)
-    save_path = f"{PATH_SCM}/SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{args.noise_type}-noises.json"
+    save_path = f"{PATH_SCM}/SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{args.noise_types}-noises.json"
     # f"{PATH_SCM}/SCM_N5_chain_graph_linear_functions_gaussian_noises.json"
     # save_path = PATH_SCM
     scm.save_to_json(save_path)
+
+    if args.plot:
+        scm.draw_scm()
 
 
 if __name__ == '__main__':
