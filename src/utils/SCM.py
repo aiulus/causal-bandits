@@ -35,7 +35,7 @@ def parse_scm(input):
     return nodes, G, functions, noise
 
 
-def generate_distributions(n_variables, distr_type: str, params=None):
+def generate_distributions(variables, distr_type: str, params=None):
     # TODO: make sure that 'params' is generated as a list of lists [[]]
     # TODO: currently no way of passing a 'params' array in a manageable way
     p_n = {}
@@ -49,16 +49,16 @@ def generate_distributions(n_variables, distr_type: str, params=None):
         }
 
     # TODO: too nested
-    for i in range(n_variables):
+    for x_i in variables:
         if distr_type == 'gaussian':
             mu, sigma = params['gaussian']['mu'], params['gaussian']['sigma']
-            p_n[i] = lambda x, mu=mu, sigma=sigma: norm.rvs(mu, sigma, size=x)
+            p_n[x_i] = lambda x, mu=mu, sigma=sigma: norm.rvs(mu, sigma, size=x)
         elif distr_type == 'bernoulli':
             p = params['bernoulli']['p']
-            p_n[i] = lambda x, p=p: bernoulli.rvs(p, size=x)
+            p_n[x_i] = lambda x, p=p: bernoulli.rvs(p, size=x)
         elif distr_type == 'exp':
             lam = params['exp']['lam']
-            p_n[i] = lambda x, lam=lam: expon.rvs(scale=1 / lam, size=x)
+            p_n[x_i] = lambda x, lam=lam: expon.rvs(scale=1 / lam, size=x)
         else:
             raise ValueError(f"Unsupported distribution type:{distr_type}")
 
@@ -93,30 +93,31 @@ def generate_polynomial(parents, noise, coeffs, degrees):
     return function
 
 
-def generate_functions(graph, noise_var, funct_type='linear'):
+def generate_functions(graph, noise_vars, funct_type='linear'):
     # TODO
     """
 
     :param graph:
-    :param noise_var: Noise variable N_i specified as f"lambda ... : ..."
+    :param noise_vars: Noise variables N_i specified as f"lambda ... : ..."
     :param funct_type:
     :return:
     """
-    G = nx.DiGraph()
-
     functions = {}
+    functions.keys()
     for node in graph.nodes:
         parents = list(graph.predecessors(node))
-    if funct_type == 'linear':
-        # Randomly pick the coefficients
-        coeffs = np.random.randn(len(parents))
-        functions[node] == generate_linear_function(parents, noise_var, coeffs)
-    elif funct_type == 'polynomial':
-        degrees = np.random.randint(1, MAX_DEGREE + 1, size=len(parents))
-        coeffs = np.random.randn(len(parents))
-        functions[node] = generate_polynomial(parents, noise_var, coeffs, degrees)
-    else:
-        raise ValueError("Unsupported function type. Use 'linear' or 'polynomial'.")
+        if funct_type == 'linear':
+            # Randomly pick the coefficients
+            coeffs = np.random.randn(len(parents))
+            # functions[node] = generate_linear_function(parents, noise_vars[node], coeffs)
+            functions[node] = generate_linear_function(parents, f"N_{node}", coeffs)
+        elif funct_type == 'polynomial':
+            degrees = np.random.randint(1, MAX_DEGREE + 1, size=len(parents))
+            coeffs = np.random.randn(len(parents))
+            # functions[node] = generate_polynomial(parents, noise_vars[node], coeffs, degrees)
+            functions[node] = generate_polynomial(parents, f"N_{node}", coeffs, degrees)
+        else:
+            raise ValueError("Unsupported function type. Use 'linear' or 'polynomial'.")
 
     return functions
 
@@ -277,9 +278,9 @@ def main():
         graph.add_nodes_from(graph_data['nodes'])
         graph.add_edges_from(graph_data['edges'])
 
-    functions = generate_functions(graph, args.noise_type, args.funct_type)
     # TODO: Check if args.n or args.n + 1
-    noises = generate_distributions(args.n + 1, args.noise_type, args.noise_params)
+    noises = generate_distributions(graph.nodes, args.noise_type, args.noise_params)
+    functions = generate_functions(graph, noises, args.funct_type)
 
     scm_data = {
         "nodes": graph.nodes,
