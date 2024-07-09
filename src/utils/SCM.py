@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import re
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
-import graph_generator, plots
+import graph_generator, plots, structural_equations, noises
 
 # Set target destination for .json files containing graph structures
 PATH_GRAPHS = "../../outputs/graphs"
@@ -19,6 +19,7 @@ PATH_PLOTS = "../../outputs/plots"
 MAX_DEGREE = 3  # For polynomial function generation
 # Set of coefficients to choose from
 PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
+
 
 def parse_scm(input):
     if isinstance(input, str):
@@ -40,42 +41,6 @@ def parse_scm(input):
 
     return nodes, G, functions, noise
 
-def parse_noise_string(noise_str):
-    dist_type_map = {
-        'N': 'gaussian',
-        'Exp': 'exponential',
-        'Ber': 'bernoulli'
-    }
-
-    pattern = r'([A-Za-z]+)\(([^)]+)\)'
-    match = re.match(pattern, noise_str)
-    if not match:
-        raise ValueError(f"Invalid distribution format: {noise_str}")
-
-    noise_type, params = match.groups()
-    params = [float(x) for x in params.split(',')]
-
-    if noise_type not in dist_type_map:
-        raise ValueError(f"Unsupported distrbution type: {noise_type}")
-
-    return {"type": dist_type_map[noise_type], "params": params}
-
-def parse_noise(noise):
-    """
-    Parse noise distribution strings into a dictionary format.
-    Example: "N(0,1) --> {"type": "gaussian", "params": [0,1]}
-    """
-
-    noise_dict = {}
-
-    if isinstance(noise, list):
-        for i, noise_str in enumerate(noise):
-            noise_dict[i] = parse_noise_string(noise_str)
-    else:
-        noise_dict[0] = parse_noise_string(noise)
-
-    return noise_dict
-
 
 def parse_interventions(interventions):
     """
@@ -88,95 +53,6 @@ def parse_interventions(interventions):
         interventions_dict[var.strip()] = float(val.strip())
 
     return interventions_dict
-
-
-def generate_distributions(variables, distr_type: str, params=None):
-    # TODO: make sure that 'params' is generated as a list of lists [[]]
-    # TODO: currently no way of passing a 'params' array in a manageable way
-    p_n = {}
-
-    # If the parameters are not specified, use standard values
-    if params is None:
-        params = {
-            'gaussian': {'mu': 0, 'sigma': 1},
-            'bernoulli': {'p': 0.5},
-            'exp': {'lam': 1.0}
-        }
-
-    # TODO: too nested
-    for x_i in variables:
-        if distr_type == 'gaussian':
-            mu, sigma = params['gaussian']['mu'], params['gaussian']['sigma']
-            p_n[x_i] = lambda x, mu=mu, sigma=sigma: norm.rvs(mu, sigma, size=x)
-        elif distr_type == 'bernoulli':
-            p = params['bernoulli']['p']
-            p_n[x_i] = lambda x, p=p: bernoulli.rvs(p, size=x)
-        elif distr_type == 'exp':
-            lam = params['exp']['lam']
-            p_n[x_i] = lambda x, lam=lam: expon.rvs(scale=1 / lam, size=x)
-        else:
-            raise ValueError(f"Unsupported distribution type:{distr_type}")
-
-    return p_n
-
-
-def generate_linear_function(parents, noise, coeffs):
-    """
-
-    :param parents: immediate predecessors (pa(X_i)) of node X_i in graph G
-    :param coeffs: coefficient vector of length |pa(X_i)|
-    :return: Linear function f_i(pa(X_i), N_i) = f(pa(X_i)) + N_i as a string.
-    """
-    terms = [f"{coeffs[i]} * {parent}" for i, parent in enumerate(parents)]
-    terms.append(noise)
-    function = f"lambda {', '.join(parents)}: " + " + ".join(terms)
-
-    return function
-
-
-def generate_polynomial(parents, noise, coeffs, degrees):
-    """
-    Generate f_i(pa(X_i), N_i) = polynomial(pa(X_i), a_j, e_j) + N_i
-    :param parents: pa(X_i)
-    :param coeffs: a_i
-    :param degrees: e_i in f_i(pa(X_i), N_i) = N_i + sum(a_j * X_i^{e_j} for j in pa(X_i))
-    :return: Linear function f_i(pa(X_i), N_i) = f(pa(X_i)) + N_i as a string.
-    """
-    terms = [f"{coeffs[i]}*{parent}**{degrees[i]}" for i, parent in enumerate(parents)]
-    terms.append(noise)
-    function = f"lambda {', '.join(parents)}: " + " + ".join(terms)
-    return function
-
-
-def generate_functions(graph, noise_vars, funct_type='linear'):
-    # TODO
-    """
-
-    :param graph:
-    :param noise_vars: Noise variables N_i specified as f"lambda ... : ..."
-    :param funct_type:
-    :return:
-    """
-    functions = {}
-    functions.keys()
-    for node in graph.nodes:
-        parents = list(graph.predecessors(node))
-        if funct_type == 'linear':
-            # Randomly pick the coefficients
-            coeffs = np.random.choice(PRIMES, size=len(parents))
-            # coeffs = np.random.randn(len(parents))
-            # functions[node] = generate_linear_function(parents, noise_vars[node], coeffs)
-            functions[node] = generate_linear_function(parents, f"N_{node}", coeffs)
-        elif funct_type == 'polynomial':
-            degrees = np.random.randint(1, MAX_DEGREE + 1, size=len(parents))
-            coeffs = np.random.choice(PRIMES, size=len(parents))
-            # coeffs = np.random.randn(len(parents))
-            # functions[node] = generate_polynomial(parents, noise_vars[node], coeffs, degrees)
-            functions[node] = generate_polynomial(parents, f"N_{node}", coeffs, degrees)
-        else:
-            raise ValueError("Unsupported function type. Use 'linear' or 'polynomial'.")
-
-    return functions
 
 
 # TODO: Extend to other than just fully-observed SCM's
@@ -213,9 +89,10 @@ class SCM:
                 continue
             # Generate noise
             # noise = eval(self.N[j])
-            noise = parse_noise(self.N)
+            noise = noises.parse_noise(self.N)
             # Propagate noise
-            f_j = eval(self.F[j])
+            fj_str = list(self.F.items())[j]
+            f_j = eval(fj_str[1])
             pa_j = list(self.G.predecessors(j))
             parent_data = np.array([data[parent] for parent in pa_j])
             if parent_data.size == 0:
@@ -385,7 +262,7 @@ def main():
     noises = args.noise_types
     if len(args.noise_types) == 1:
         noises = np.repeat(args.noise_types, args.n + 1)
-    functions = generate_functions(graph, noises, args.funct_type)
+    functions = structural_equations.generate_functions(graph, noises, args.funct_type)
 
     scm_data = {
         "nodes": graph.nodes,
@@ -400,25 +277,5 @@ def main():
     scm.save_to_json(save_path)
 
 
-
-
 if __name__ == '__main__':
     main()
-
-"""
-Example JSON input
-        json_input = '''
-{
-    "nodes": ["X1", "X2", "Y"],
-    "edges": [["X1", "Y"], ["X2", "Y"]],
-    "functions": {
-        "Y": "lambda x1, x2: 2*x1 + 3*x2"
-    },
-    "noise": {
-        "X1": "np.random.normal(0, 1)",
-        "X2": "np.random.normal(0, 1)",
-        "Y": "np.random.normal(0, 1)"
-    }
-}
-'''    
-"""
