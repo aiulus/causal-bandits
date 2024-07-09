@@ -1,24 +1,24 @@
 import argparse
-import ast
 import json
-import types
+import sys
+import os
 
 import networkx as nx
 import numpy as np
 from scipy.stats import norm, bernoulli, expon
 import matplotlib.pyplot as plt
-import sys
-import os
+import re
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
-import graph_generator
+import graph_generator, plots
 
 # Set target destination for .json files containing graph structures
 PATH_GRAPHS = "../../outputs/graphs"
 PATH_SCM = "../../outputs/SCMs"
 PATH_PLOTS = "../../outputs/plots"
 MAX_DEGREE = 3  # For polynomial function generation
-
+# Set of coefficients to choose from
+PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
 
 def parse_scm(input):
     if isinstance(input, str):
@@ -39,6 +39,55 @@ def parse_scm(input):
     G.add_edges_from(data['edges'])
 
     return nodes, G, functions, noise
+
+def parse_noise_string(noise_str):
+    dist_type_map = {
+        'N': 'gaussian',
+        'Exp': 'exponential',
+        'Ber': 'bernoulli'
+    }
+
+    pattern = r'([A-Za-z]+)\(([^)]+)\)'
+    match = re.match(pattern, noise_str)
+    if not match:
+        raise ValueError(f"Invalid distribution format: {noise_str}")
+
+    noise_type, params = match.groups()
+    params = [float(x) for x in params.split(',')]
+
+    if noise_type not in dist_type_map:
+        raise ValueError(f"Unsupported distrbution type: {noise_type}")
+
+    return {"type": dist_type_map[noise_type], "params": params}
+
+def parse_noise(noise):
+    """
+    Parse noise distribution strings into a dictionary format.
+    Example: "N(0,1) --> {"type": "gaussian", "params": [0,1]}
+    """
+
+    noise_dict = {}
+
+    if isinstance(noise, list):
+        for i, noise_str in enumerate(noise):
+            noise_dict[i] = parse_noise_string(noise_str)
+    else:
+        dist_type, params = noise[0].lower(), [float(x) for x in noise[2:].split(',').strip(')').strip(' ')]
+        noise_dict[dist_type] = {"type": dist_type, "params": params}
+    return noise_dict
+
+
+def parse_interventions(interventions):
+    """
+    Parse intervention strings like 'do(X_i=a)' into a dictionary.
+    Example: "do(X1=0)" --> {"X1": 0}
+    """
+    interventions_dict = {}
+    for intervention in interventions:
+        var, val = intervention.replace('do(', '').replace(')', '').split('=')
+        interventions_dict[var.strip()] = float(val.strip())
+
+    return interventions_dict
 
 
 def generate_distributions(variables, distr_type: str, params=None):
@@ -114,12 +163,14 @@ def generate_functions(graph, noise_vars, funct_type='linear'):
         parents = list(graph.predecessors(node))
         if funct_type == 'linear':
             # Randomly pick the coefficients
-            coeffs = np.random.randn(len(parents))
+            coeffs = np.random.choice(PRIMES, size=len(parents))
+            # coeffs = np.random.randn(len(parents))
             # functions[node] = generate_linear_function(parents, noise_vars[node], coeffs)
             functions[node] = generate_linear_function(parents, f"N_{node}", coeffs)
         elif funct_type == 'polynomial':
             degrees = np.random.randint(1, MAX_DEGREE + 1, size=len(parents))
-            coeffs = np.random.randn(len(parents))
+            coeffs = np.random.choice(PRIMES, size=len(parents))
+            # coeffs = np.random.randn(len(parents))
             # functions[node] = generate_polynomial(parents, noise_vars[node], coeffs, degrees)
             functions[node] = generate_polynomial(parents, f"N_{node}", coeffs, degrees)
         else:
@@ -128,6 +179,7 @@ def generate_functions(graph, noise_vars, funct_type='linear'):
     return functions
 
 
+# TODO: Extend to other than just fully-observed SCM's
 class SCM:
     def __init__(self, input):
         self.nodes, self.G, self.F, self.N = parse_scm(input)
@@ -154,15 +206,17 @@ class SCM:
             else:
                 data[X_j] = np.full(n_samples, f_j)
 
+        # TODO: Check if the construction of 'data' object makes sense
         # Generate samples in topological node order
-        for X_j in nx.topological_sort(self.G):
+        for j, X_j in enumerate(nx.topological_sort(self.G)):
             if X_j in self.interventions:
                 continue
             # Generate noise
-            noise = eval(self.N[X_j])
+            # noise = eval(self.N[j])
+            noise = parse_noise(self.N)
             # Propagate noise
-            f_j = eval(self.F[X_j])
-            pa_j = list(self.G.predecessors(X_j))
+            f_j = eval(self.F[j])
+            pa_j = list(self.G.predecessors(j))
             parent_data = np.array([data[parent] for parent in pa_j])
             if parent_data.size == 0:
                 parent_data = np.zeros((0, n_samples))
@@ -213,7 +267,7 @@ class SCM:
         nx.draw(self.G, pos, with_labels=True, node_size=1000, node_color='lightblue', font_size=10, font_weight='bold')
         plt.show()
 
-    def save_to_json(self, file_path):
+    def save_to_json(self, filename):
         os.makedirs(PATH_SCM, exist_ok=True)
         scm_data = {
             "nodes": [node for node in self.nodes],
@@ -222,16 +276,11 @@ class SCM:
             # TODO: Save only the type(s) of distribution for the noises
             "noise": self.N
         }
+        file_path = os.path.join(PATH_SCM, filename)
         with open(file_path, 'w') as f:
             json.dump(scm_data, f, indent=2)
         print(f"SCM saved to {file_path}")
 
-    @staticmethod
-    def func_to_str(func):
-        return func
-    @staticmethod
-    def str_to_func(func_str):
-        return eval(func_str)
     @classmethod
     def load_from_json(cls, file_path):
         with open(file_path, 'r') as f:
@@ -240,66 +289,14 @@ class SCM:
         data['noise'] = {k: cls.str_to_func(v) for k, v in data['noise'].items()}
         return cls(data)
 
-def draw_scm(scm_path):
-    try:
-        with open(scm_path, 'r') as f:
-            scm_data = json.load(f)
-    except FileNotFoundError:
-        print(f"The file at {scm_path} does not exist.")
-        return
+    @staticmethod
+    def func_to_str(func):
+        return func
 
-    G = nx.DiGraph()
-    G.add_nodes_from(scm_data['nodes'])
-    G.add_edges_from(scm_data['edges'])
+    @staticmethod
+    def str_to_func(func_str):
+        return eval(func_str)
 
-    # Define the layout
-    pos = nx.planar_layout(G)
-
-    # Draw the regular nodes
-    nx.draw_networkx_nodes(G, pos, node_color='none', edgecolors='black', node_size=1000)
-    nx.draw_networkx_labels(G, pos, font_color='black', font_size=10)
-
-    # Draw the edges
-    nx.draw_networkx_edges(G, pos, edge_color='black', arrows=True, min_source_margin=0.5, min_target_margin=0.5)
-
-    # Draw the noise node
-    noise = scm_data['noise']
-    noise_nodes = []
-    noise_labels = {}
-
-    for i, node in enumerate(scm_data['nodes']):
-        noise_node = f"N_{i+1}"
-        # noise_dist = noise[node]
-        noise_nodes.append(noise_node)
-        G.add_node(noise_node)
-        G.add_edge(noise_node, node)
-        pos[noise_node] = (pos[node][0], pos[node][1] + 1)
-        noise_labels[node] = noise_node
-
-        # Create labels for noise nodes
-        # TODO
-    # Draw the noise nodes
-    nx.draw_networkx_nodes(G, pos, nodelist=noise_nodes, node_shape='o', node_color='white',edgecolors='black', node_size=1000, alpha=0.5)
-    nx.draw_networkx_edges(G, pos, edgelist=[(f"N_{i+1}", scm_data['nodes'][i]) for i in range(len(scm_data['nodes']))],
-                           style='dashed', edge_color='black', arrows=True,
-                           min_source_margin=14.5, min_target_margin=14.5, arrowsize=15)
-    # TODO: draw noise labels
-
-    # Display the functions next to the graph
-    functions = scm_data['functions']
-    functions_text = "\n".join([f"{k}: {v}" for k, v in functions.items()])
-    # TODO: partially overlaps with the DAG, needs more flexible positioning
-    plt.text(1.05, 0.5, functions_text, ha='left', va='center')
-
-    # Save/show the plot
-    # TODO: More informative but concise title, better formatted
-    plt.title("Structural Causal Model")
-    os.makedirs(PATH_SCM, exist_ok=True)
-    plot_filename = os.path.join(PATH_SCM, "testY.png")
-    plt.savefig(plot_filename, bbox_inches='tight')
-    print(f"Plot saved to {plot_filename}")
-    plt.show()
-    plt.close()
 
 def load_graph(filepath):
     with open(filepath, 'r') as f:
@@ -315,15 +312,12 @@ def main():
     parser.add_argument("--graph_type", choices=['chain', 'parallel', 'random'],
                         help="Type of graph structure to generate. Currently supported: ['chain', 'parallel', 'random']")
     # TODO: help info
-    parser.add_argument('--noise_types', type=str, nargs='+')
-    #parser.add_argument('--noise_type', type=str, nargs='+', default='gaussian',
+    parser.add_argument('--noise_types', default='N(0,1)', type=str, nargs='+')
+    # parser.add_argument('--noise_type', type=str, nargs='+', default='gaussian',
     #                    choices=['gaussian', 'bernoulli', 'exponential'],
     #                    help="Specify the type of noise distributions. Currently "
     #                         "supported: ['gaussian', 'bernoulli', 'exponential']")
     # TODO: the list must be reshaped from (n_params * n_variables, 1) to (n_params, n_variables) --> dependency: generate_distributions()
-    parser.add_argument('--noise_params', type=float, nargs='+',
-                        help="Specify a list of float parameters for the noise distributions."
-                             "Length of the provided list must match num_params x num_variables")
     parser.add_argument('--funct_type', type=str, nargs='+', default='linear', choices=['linear', 'polynomial'],
                         help="Specify the function family "
                              "to be used in structural "
@@ -338,14 +332,23 @@ def main():
     parser.add_argument("--conf", type=int, help="Desired number of confounding variables in the causal graph.")
     parser.add_argument("--intervene", type=str, help="JSON string representing interventions to perform.")
     parser.add_argument("--plot", action='store_true')
+    # TODO: Currently no method for re-assigning default source/target paths
+    parser.add_argument("--path_graphs", type=str, default=PATH_GRAPHS, help="Path to save/load graph specifications.")
+    parser.add_argument("--path_scm", type=str, default=PATH_SCM, help="Path to save/load SCM specifications.")
+    parser.add_argument("--path_plots", type=str, default=PATH_PLOTS, help="Path to save the plots.")
 
     args = parser.parse_args()
 
-    save_path = f"{PATH_SCM}/SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{args.noise_types}-noises.json"
+    save_path = f"SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions.json"
 
     if args.plot:
-        draw_scm(save_path)
+        plots.draw_scm(save_path)
         return
+
+    if args.noise_types is not None:
+        noises = args.noise_types
+        if len(noises) != 1 and len(noises) != args.n + 1:
+            raise ValueError("Specify either exactly one noise distribution or |X| - many !")
 
     # TODO: file names for random graphs differ from chain, parallel
     # graph_type = f"random_pa{args.pa_n}_conf{args.conf}_vstr{args.vstr}"
@@ -364,8 +367,8 @@ def main():
             '--n', f"{args.n}",
             '--p', f"{args.n}",
             '--pa_n', f"{args.pa_n}",
-            #'--vstr', f"{args.vstr}",
-            #'--conf', f"{args.conf}",
+            # '--vstr', f"{args.vstr}",
+            # '--conf', f"{args.conf}",
             '--save'
         ]
         print("Trying again...")
@@ -390,11 +393,13 @@ def main():
         "functions": {k: SCM.func_to_str(v) for k, v in functions.items()},
         "noise": noises
     }
-    scm = SCM(scm_data)
+    scm = SCM.SCM(scm_data)
 
     # f"{PATH_SCM}/SCM_N5_chain_graph_linear_functions_gaussian_noises.json"
     # save_path = PATH_SCM
     scm.save_to_json(save_path)
+
+
 
 
 if __name__ == '__main__':
