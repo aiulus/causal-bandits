@@ -72,8 +72,8 @@ def parse_noise(noise):
         for i, noise_str in enumerate(noise):
             noise_dict[i] = parse_noise_string(noise_str)
     else:
-        dist_type, params = noise[0].lower(), [float(x) for x in noise[2:].split(',').strip(')').strip(' ')]
-        noise_dict[dist_type] = {"type": dist_type, "params": params}
+        noise_dict[0] = parse_noise_string(noise)
+
     return noise_dict
 
 
