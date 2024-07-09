@@ -239,64 +239,67 @@ class SCM:
         data['functions'] = {k: cls.str_to_func(v) for k, v in data['functions'].items()}
         data['noise'] = {k: cls.str_to_func(v) for k, v in data['noise'].items()}
         return cls(data)
-    def draw_scm(self):
-        G = nx.DiGraph()
-        G.add_nodes_from(self.G.nodes)
-        G.add_edges_from(self.G.edges)
 
-        pos = nx.planar_layout(self.G)
-        # Draw the regular nodes
-        nx.draw_networkx_nodes(self.G, pos, node_color='none', node_size=500)
-        nx.draw_networkx_labels(self.G, pos, font_color='black', font_size=10)
-        # Draw the edges
-        nx.draw_networkx_edges(self.G, pos, edge_color='black')
+def draw_scm(scm_path):
+    try:
+        with open(scm_path, 'r') as f:
+            scm_data = json.load(f)
+    except FileNotFoundError:
+        print(f"The file at {scm_path} does not exist.")
+        return
 
-        # Draw noise nodes
-        noise_nodes = []
-        noise_labels = {}
-        index = 1
-        # TODO: check this first
-        while index < len(self.N):
-            dist_type = self.N[index]
-            if dist_type == 'N':
-                noise_labels[f"N_{index//4 + 1}"] = f"N_{index//4 + 1} ~ Exp({self.N[index+1]}, {self.N[index+2]}"
-                index += 3
-            elif dist_type == 'Exp':
-                noise_labels[f"N_{index // 4 + 1}"] = f"N_{index // 4 + 1} ~ Exp({self.N[index + 1]})"
-                index += 2
-            elif dist_type == 'Ber':
-                noise_labels[f"N_{index // 4 + 1}"] = f"N_{index // 4 + 1} ~ Ber({self.N[index + 1]})"
-                index += 2
-            noise_nodes.append(f"N_{index//4}")
+    G = nx.DiGraph()
+    G.add_nodes_from(scm_data['nodes'])
+    G.add_edges_from(scm_data['edges'])
 
-        # Add noise nodes to the graph
-        for i, node in enumerate(self.nodes):
-            noise_node = f"N_{i + 1}"
-            G.add_node(noise_node)
-            G.add_edge(noise_node, node)
-            pos[noise_node] = (pos[node][0], pos[node][1] + 0.1)
+    # Define the layout
+    pos = nx.planar_layout(G)
 
-        # Draw the noise nodes
-        nx.draw_networkx_nodes(G, pos, nodelist=noise_nodes, node_shape='o', node_color='black', node_size=500, alpha=0.5)
-        nx.draw_networkx_edges(G, pos, edgelist=[(f"N_{i+1}", self.nodes[i]) for i in range(len(self.nodes))], style='dashed', edge_color='black')
-        nx.draw_networkx_labels(G, pos, labels=noise_labels, font_color='black', font_size=10)
+    # Draw the regular nodes
+    nx.draw_networkx_nodes(G, pos, node_color='none', edgecolors='black', node_size=1000)
+    nx.draw_networkx_labels(G, pos, font_color='black', font_size=10)
 
-        # Display the functions next to the graph
-        functions = self.F
-        function_text = "\n".join([f"{k}: {v}" for k, v in functions.items()])
-        plt.text(1.05, 0.5, function_text, ha='left', va='center', transform=plt.gca().transAxes)
+    # Draw the edges
+    nx.draw_networkx_edges(G, pos, edge_color='black', arrows=True, min_source_margin=0.5, min_target_margin=0.5)
 
-        # Show/save the plot
-        plt.title("Structural Causal Model")
-        os.makedirs(PATH_PLOTS, exist_ok=True)
-        plot_filename = os.path.join(PATH_PLOTS, f"SCM_n{len(self.nodes)}_{self.N}-noises.png")
-        plt.savefig(plot_filename, bbox_inches='tight')
-        # plt.show()
-        plt.close()
-        print(f"Plot saved to {plot_filename}")
+    # Draw the noise node
+    noise = scm_data['noise']
+    noise_nodes = []
+    noise_labels = {}
 
+    for i, node in enumerate(scm_data['nodes']):
+        noise_node = f"N_{i+1}"
+        # noise_dist = noise[node]
+        noise_nodes.append(noise_node)
+        G.add_node(noise_node)
+        G.add_edge(noise_node, node)
+        pos[noise_node] = (pos[node][0], pos[node][1] + 1)
+        noise_labels[node] = noise_node
 
+        # Create labels for noise nodes
+        # TODO
+    # Draw the noise nodes
+    nx.draw_networkx_nodes(G, pos, nodelist=noise_nodes, node_shape='o', node_color='white',edgecolors='black', node_size=1000, alpha=0.5)
+    nx.draw_networkx_edges(G, pos, edgelist=[(f"N_{i+1}", scm_data['nodes'][i]) for i in range(len(scm_data['nodes']))],
+                           style='dashed', edge_color='black', arrows=True,
+                           min_source_margin=14.5, min_target_margin=14.5, arrowsize=15)
+    # TODO: draw noise labels
 
+    # Display the functions next to the graph
+    functions = scm_data['functions']
+    functions_text = "\n".join([f"{k}: {v}" for k, v in functions.items()])
+    # TODO: partially overlaps with the DAG, needs more flexible positioning
+    plt.text(1.05, 0.5, functions_text, ha='left', va='center')
+
+    # Save/show the plot
+    # TODO: More informative but concise title, better formatted
+    plt.title("Structural Causal Model")
+    os.makedirs(PATH_SCM, exist_ok=True)
+    plot_filename = os.path.join(PATH_SCM, "testY.png")
+    plt.savefig(plot_filename, bbox_inches='tight')
+    print(f"Plot saved to {plot_filename}")
+    plt.show()
+    plt.close()
 
 def load_graph(filepath):
     with open(filepath, 'r') as f:
@@ -337,6 +340,12 @@ def main():
     parser.add_argument("--plot", action='store_true')
 
     args = parser.parse_args()
+
+    save_path = f"{PATH_SCM}/SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{args.noise_types}-noises.json"
+
+    if args.plot:
+        draw_scm(save_path)
+        return
 
     # TODO: file names for random graphs differ from chain, parallel
     # graph_type = f"random_pa{args.pa_n}_conf{args.conf}_vstr{args.vstr}"
@@ -382,13 +391,10 @@ def main():
         "noise": noises
     }
     scm = SCM(scm_data)
-    save_path = f"{PATH_SCM}/SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{args.noise_types}-noises.json"
+
     # f"{PATH_SCM}/SCM_N5_chain_graph_linear_functions_gaussian_noises.json"
     # save_path = PATH_SCM
     scm.save_to_json(save_path)
-
-    if args.plot:
-        scm.draw_scm()
 
 
 if __name__ == '__main__':
