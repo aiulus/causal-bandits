@@ -255,6 +255,7 @@ class SCM:
         noise_nodes = []
         noise_labels = {}
         index = 1
+        # TODO: check this first
         while index < len(self.N):
             dist_type = self.N[index]
             if dist_type == 'N':
@@ -285,13 +286,13 @@ class SCM:
         function_text = "\n".join([f"{k}: {v}" for k, v in functions.items()])
         plt.text(1.05, 0.5, function_text, ha='left', va='center', transform=plt.gca().transAxes)
 
-        # Show the plot
+        # Show/save the plot
         plt.title("Structural Causal Model")
         os.makedirs(PATH_PLOTS, exist_ok=True)
         plot_filename = os.path.join(PATH_PLOTS, f"SCM_n{len(self.nodes)}_{self.N}-noises.png")
         plt.savefig(plot_filename, bbox_inches='tight')
-        plt.show()
-
+        # plt.show()
+        plt.close()
         print(f"Plot saved to {plot_filename}")
 
 
