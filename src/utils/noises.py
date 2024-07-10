@@ -13,35 +13,29 @@ PATH_GRAPHS = "../../outputs/graphs"
 PATH_SCM = "../../outputs/SCMs"
 PATH_PLOTS = "../../outputs/plots"
 PATH_DATA = "../../outputs/data"
+# Command line strings for the surrently supported set of distributions
+DISTS = ['N', 'Exp', 'Ber']
 
-def generate_distributions(variables, distr_type: str, params=None):
-    # TODO: make sure that 'params' is generated as a list of lists [[]]
-    # TODO: currently no way of passing a 'params' array in a manageable way
+
+def generate_distributions(noise_dict):
     p_n = {}
 
-    # If the parameters are not specified, use standard values
-    if params is None:
-        params = {
-            'gaussian': {'mu': 0, 'sigma': 1},
-            'bernoulli': {'p': 0.5},
-            'exp': {'lam': 1.0}
-        }
-
     # TODO: too nested
-    for x_i in variables:
-        if distr_type == 'gaussian':
-            mu, sigma = params['gaussian']['mu'], params['gaussian']['sigma']
-            p_n[x_i] = lambda x, mu=mu, sigma=sigma: norm.rvs(mu, sigma, size=x)
-        elif distr_type == 'bernoulli':
-            p = params['bernoulli']['p']
-            p_n[x_i] = lambda x, p=p: bernoulli.rvs(p, size=x)
-        elif distr_type == 'exp':
-            lam = params['exp']['lam']
-            p_n[x_i] = lambda x, lam=lam: expon.rvs(scale=1 / lam, size=x)
+    for node, noise_spec in noise_dict.items():
+        dist_type = noise_spec['type']
+        params = noise_spec['params']
+
+        if dist_type == 'gaussian':
+            p_n[node] = lambda x, mu=params[0], sigma=params[1]: norm.rvs(mu, sigma, size=x)
+        elif dist_type == 'bernoulli':
+            p_n[node] = lambda x, p=params[0]: bernoulli.rvs(p, size=x)
+        elif dist_type == 'exp':
+            p_n[node] = lambda x, lam=params[0]: expon.rvs(scale=1 / lam, size=x)
         else:
-            raise ValueError(f"Unsupported distribution type:{distr_type}")
+            raise ValueError(f"Unsupported distribution type:{dist_type}")
 
     return p_n
+
 
 def parse_noise_string(noise_str):
     dist_type_map = {
@@ -61,20 +55,27 @@ def parse_noise_string(noise_str):
     if noise_type not in dist_type_map:
         raise ValueError(f"Unsupported distrbution type: {noise_type}")
 
-    return {"type": dist_type_map[noise_type], "params": params}
+    return dist_type_map[noise_type], params
 
-def parse_noise(noise):
+
+def parse_noise(noise, nodes):
     """
     Parse noise distribution strings into a dictionary format.
-    Example: "N(0,1) --> {"type": "gaussian", "params": [0,1]}
+    Example: "N(0,1) --> {"X_{node_id}": ("N", 0, 1)}
     """
 
-    noise_dict = {}
+    if isinstance(noise, str):
+        noise = [noise]
 
-    if isinstance(noise, list):
-        for i, noise_str in enumerate(noise):
-            noise_dict[i] = parse_noise_string(noise_str)
-    else:
-        noise_dict[0] = parse_noise_string(noise)
+    num_nodes = len(nodes)
+    counts = {distr_str: noise.count(distr_str) for distr_str in DISTS}
+    arg_count = sum(counts.values())
+
+    if len(noise) == 1:
+        noise = noise * num_nodes
+    elif len(noise) != num_nodes:
+        raise ValueError(f"Expected either 1 or {num_nodes} noise distributions, but got {len(noise)}: \n {noise}")
+
+    noise_dict = {node: parse_noise_string(noise_str) for node, noise_str in zip(nodes, noise)}
 
     return noise_dict

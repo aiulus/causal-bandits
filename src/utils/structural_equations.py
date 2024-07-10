@@ -74,7 +74,7 @@ def generate_functions(graph, noise_vars, funct_type='linear'):
             # functions[node] = generate_polynomial(parents, noise_vars[node], coeffs, degrees)
             functions[node] = generate_polynomial(parents, f"N_{node}", coeffs, degrees)
         else:
-            raise ValueError("Unsupported function type. Use 'linear' or 'polynomial'.")
+            raise ValueError(f"Unsupported function type: {funct_type}. Use 'linear' or 'polynomial'.")
 
     return functions
 

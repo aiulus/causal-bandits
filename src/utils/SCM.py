@@ -1,24 +1,27 @@
 import argparse
 import json
-import sys
 import os
+import sys
 
+import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from scipy.stats import norm, bernoulli, expon
-import matplotlib.pyplot as plt
-import re
+
+# from src.utils import noises, plots, structural_equations, graph_generator
+import noises, plots, structural_equations, graph_generator
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
-import graph_generator, plots, structural_equations, noises
 
-# Set target destination for .json files containing graph structures
+
+# Set target destination for .json files containing graph structuress
 PATH_GRAPHS = "../../outputs/graphs"
 PATH_SCM = "../../outputs/SCMs"
 PATH_PLOTS = "../../outputs/plots"
 MAX_DEGREE = 3  # For polynomial function generation
 # Set of coefficients to choose from
 PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
+# Command line strings for the surrently supported set of distributions
+DISTS = ['N', 'Exp', 'Ber']
 
 
 def parse_scm(input):
@@ -69,38 +72,53 @@ class SCM:
         for variable, func in interventions.items():
             self.interventions[variable] = func
 
-    def sample(self, n_samples=1):
-        """Generate random samples from the SCM"""
-        data = {X_j: np.zeros(n_samples) for X_j in self.G.nodes}
+    def get_structural_equations(self):
+        F = {}
 
-        # Apply interventions
-        for X_j, f_j in self.interventions.items():
-            # For soft interventions
-            if callable(f_j):
-                data[X_j] = f_j(n_samples)
-            # For perfect interventions
-            else:
-                data[X_j] = np.full(n_samples, f_j)
+        noise = noises.parse_noise(self.N)
+        noise_dists = noises.generate_distributions(noise)
 
-        # TODO: Check if the construction of 'data' object makes sense
-        # Generate samples in topological node order
+        # Make sure that each node is parsed after its parents
         for j, X_j in enumerate(nx.topological_sort(self.G)):
-            if X_j in self.interventions:
+            x_j = self.nodes[j]
+            pa_j_list = [node for node in self.G.predecessors(x_j)]  # Get the list of parents of j
+            n_j = noise_dists.get(j)  # Get the noise term
+
+            if len(pa_j_list) == 0:  # If X_j is a source node, f_j(pa_j, N_j) = N_j
+                F[x_j] = n_j
                 continue
-            # Generate noise
-            # noise = eval(self.N[j])
-            noise = noises.parse_noise(self.N)
-            # Propagate noise
+
+            # Evaluate the structural equation
             fj_str = list(self.F.items())[j]
             f_j = eval(fj_str[1])
-            pa_j = list(self.G.predecessors(j))
-            parent_data = np.array([data[parent] for parent in pa_j])
-            if parent_data.size == 0:
-                parent_data = np.zeros((0, n_samples))
-            else:
-                parent_data = parent_data.T
-            # Additive noise
-            data[X_j] = f_j(*parent_data.T) + noise
+
+            # Update F // Additive noises
+            F[x_j] = lambda x: f_j(x) + n_j(x)
+
+        return F
+
+    def sample(self, n_samples=1):
+        """Generate random samples from the SCM by independently sampling noise variables in topological order of the
+        causal graph, and recursively propagating the noise distributions according to the structural equations."""
+
+        # Initialize a dictionary {X_j: data ~ P_Xj s.t. |data| = n_samples}
+        data = {X_j: np.zeros(n_samples) for X_j in self.G.nodes}
+
+        # Get structural equations
+        F = self.get_structural_equations()
+
+        # Make sure that each node is parsed after its parents
+        for j, X_j in enumerate(nx.topological_sort(self.G)):
+            # TODO: still single arg not populated to |V| - many
+
+            # Generate noise samples for the current node
+            # noise_samples = noise_dists.get(j)(n_samples)
+
+            x_j = self.nodes[j]
+
+            f_j = F.get(x_j)
+
+            data[x_j] = f_j(n_samples)
 
         return data
 
@@ -189,13 +207,13 @@ def main():
     parser.add_argument("--graph_type", choices=['chain', 'parallel', 'random'],
                         help="Type of graph structure to generate. Currently supported: ['chain', 'parallel', 'random']")
     # TODO: help info
-    parser.add_argument('--noise_types', default='N(0,1)', type=str, nargs='+')
+    parser.add_argument('--noise_types', default='N(0,1)', type=str, nargs='+', help='--noise_types')
     # parser.add_argument('--noise_type', type=str, nargs='+', default='gaussian',
     #                    choices=['gaussian', 'bernoulli', 'exponential'],
     #                    help="Specify the type of noise distributions. Currently "
     #                         "supported: ['gaussian', 'bernoulli', 'exponential']")
     # TODO: the list must be reshaped from (n_params * n_variables, 1) to (n_params, n_variables) --> dependency: generate_distributions()
-    parser.add_argument('--funct_type', type=str, nargs='+', default='linear', choices=['linear', 'polynomial'],
+    parser.add_argument('--funct_type', type=str, default='linear', choices=['linear', 'polynomial'],
                         help="Specify the function family "
                              "to be used in structural "
                              "equations. Currently "
@@ -223,9 +241,12 @@ def main():
         return
 
     if args.noise_types is not None:
-        noises = args.noise_types
-        if len(noises) != 1 and len(noises) != args.n + 1:
-            raise ValueError("Specify either exactly one noise distribution or |X| - many !")
+        # counts = {distr_str: args.noise_types.count(distr_str) for distr_str in DISTS}
+        # arg_count = sum(counts.values())
+        arg_count = len(args.noise_types)
+        if arg_count != 1 and arg_count != args.n + 1:
+            raise ValueError(f"Provided: {args.noise_types}. Invalid number of noise terms: {arg_count}\n"
+                             f"Specify either exactly one noise distribution or |X| - many !")
 
     # TODO: file names for random graphs differ from chain, parallel
     # graph_type = f"random_pa{args.pa_n}_conf{args.conf}_vstr{args.vstr}"
@@ -259,18 +280,21 @@ def main():
     # noises = generate_distributions(graph.nodes, args.noise_types, args.noise_params)
     # TODO: noises should be specified not only by the names but N(0, 1), Exp(2), Geo(0.25), Ber(0.5), etc.
     # TODO: 'noises' should be a dictionary indexed by node names
-    noises = args.noise_types
-    if len(args.noise_types) == 1:
-        noises = np.repeat(args.noise_types, args.n + 1)
-    functions = structural_equations.generate_functions(graph, noises, args.funct_type)
+
+    noise_list = [f'{dist}' for dist in args.noise_types]
+    if len(noise_list) == 1:
+        noise_list *= len(graph.nodes)
+
+    noises_dict = noises.parse_noise(noise_list, list(graph.nodes))
+    functions = structural_equations.generate_functions(graph, noises_dict, args.funct_type)
 
     scm_data = {
         "nodes": graph.nodes,
         "edges": graph.edges,
         "functions": {k: SCM.func_to_str(v) for k, v in functions.items()},
-        "noise": noises
+        "noise": {node: (dist_type, *params) for node, (dist_type, params) in noises_dict.items()}
     }
-    scm = SCM.SCM(scm_data)
+    scm = SCM(scm_data)
 
     # f"{PATH_SCM}/SCM_N5_chain_graph_linear_functions_gaussian_noises.json"
     # save_path = PATH_SCM
