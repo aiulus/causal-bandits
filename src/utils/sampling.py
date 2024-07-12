@@ -24,21 +24,32 @@ PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
 DISTS = ['N', 'Exp', 'Ber']
 
 # file_path = "..\..\outputs\SCMs\SCM_n7_chain-graph_polynomial-functions.json"
-file_path = "..\..\outputs\SCMs\SCM_n5_chain-graph_polynomial-functions.json"
-data_savepath = "..\..\outputs\data\DATA_SCM_n5_chain-graph_polynomial-functions_nsamples_1000.csv"
+# file_path = "..\..\outputs\SCMs\SCM_n5_chain-graph_polynomial-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_parallel-graph_linear-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions.json"
+#file_path = "..\..\outputs\SCMs\SCM_n10_parallel-graph_polynomial-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions_['N(0,1)']_noises.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions_['N(2,10)']_noises_p0.3.json" # TODO: Didn't work
+file_path = "..\..\outputs\SCMs\SCM_n7_chain-graph_polynomial-functions_['N(2,10)']_noises_pNone.json"
+data_savepath = "..\..\outputs\data\DATA_SCM_n7_chain-graph_polynomial-functions_['N(2,10)']_noises_pNone.csv"
 
 
 def evaluate_structural_equation(function_string, data_dict, noise_dict):
     match_single_arg = re.search(r'lambda\s+(\w+)\s*:', function_string)
     match_multiple_args = re.search(r'lambda\s*\(([^)]*)\)\s*:', function_string)
+    match = re.search(r'lambda\s*([^:]+)\s*:', function_string)
     if match_multiple_args:
         input_vars = match_multiple_args.group(1).split(',')
     elif match_single_arg:
         input_vars = [match_single_arg.group(1)]
+    elif match:
+        input_vars = match.group(1).split(',')
     else:
         raise ValueError(f"Invalid lambda function format: {function_string}")
     # Clean up and map the input variables to data_dict entries
-    # input_vars = [var.strip() for var in input_vars]
+    input_vars = [var.strip() for var in input_vars]
 
     # Replace 'N_Xi" with the corresponding noise data vectors
     noise_vars = re.findall(r'N\w+', function_string)
@@ -153,7 +164,7 @@ def main():
 #        save_name = "DATA" + file_name
 #        save_path = os.path.join(PATH_DATA, save_name)
         save_to_csv(data, data_savepath)
-        plots.plot_distributions_from_dict(data)
+        # plots.plot_distributions_from_dict(data)
         print(f"Data saved to {data_savepath}")
 
 

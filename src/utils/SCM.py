@@ -48,18 +48,15 @@ def parse_scm(input):
 
 
 def load_graph_from_json(filepath):
-    try:
-        with open(filepath, 'r') as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        print(f"No such file: {filepath}")
+    with open(filepath, 'r') as f:
+        data = json.load(f)
     G = nx.DiGraph()
     G.add_nodes_from(data['nodes'])
     G.add_edges_from(data['edges'])
     return G
 
 
-def load_scm_from_json(cls, file_path):
+def load_scm_from_json(file_path):
     graph = load_graph_from_json(file_path)
     with open(file_path, 'r') as f:
         data = json.load(f)
@@ -248,7 +245,7 @@ def main():
 
     args = parser.parse_args()
 
-    save_path = f"SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions.json"
+    save_path = f"SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{args.noise_types}_noises_p{args.p}.json"
 
     if args.plot:
         plots.draw_scm(save_path)
@@ -267,7 +264,7 @@ def main():
     graph_type = f"{args.graph_type}_graph_N{args.n}"
     file_path = f"{PATH_GRAPHS}/{graph_type}.json"
     if args.graph_type == 'random':
-        graph_type = f"random_graph_N{args.n}_paY_{args.pa_n}_p_{args.p}_graph_N{args.n}"
+        graph_type = f"random_graph_N{args.n}_paY_{args.pa_n}_p_{str(args.p).replace('.', '')}_graph_N{args.n}"
         file_path = f"{PATH_GRAPHS}/{graph_type}.json"
     try:
         graph = load_graph_from_json(file_path)

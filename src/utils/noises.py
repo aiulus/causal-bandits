@@ -27,7 +27,7 @@ def generate_distribution(noise_term):
         return lambda x, mu=params[0], sigma=params[1]: norm.rvs(mu, sigma, size=x)
     elif dist_type == 'bernoulli':
         return lambda x, p=params[0]: bernoulli.rvs(p, size=x)
-    elif dist_type == 'exp':
+    elif dist_type == 'exponential':
         return lambda x, lam=params[0]: expon.rvs(scale=1 / lam, size=x)
     else:
         raise ValueError(f"Unsupported distribution type:{dist_type}")

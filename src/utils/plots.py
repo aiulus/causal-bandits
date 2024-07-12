@@ -24,8 +24,10 @@ def draw_scm(scm_filename):
     G.add_nodes_from(scm_data['nodes'])
     G.add_edges_from(scm_data['edges'])
 
-    # Define the layout
-    pos = nx.planar_layout(G)
+    try: # Define the layout
+        pos = nx.planar_layout(G)
+    except nx.NetworkXException:
+        pos = nx.spiral_layout(G)
 
     # Draw the regular nodes
     nx.draw_networkx_nodes(G, pos, node_color='none', edgecolors='black', node_size=1000)
@@ -94,7 +96,8 @@ def plot_distributions_from_dict(dict):
     axes = axes.flatten()
 
     for idx, (key, values) in enumerate(dict.items()):
-        axes[idx].hist(values, bins=30, edgecolor='k', alpha=0.7)
+        # axes[idx].hist(values, bins=30, edgecolor='k', alpha=0.7)
+        axes[idx].plot(values)
         axes[idx].set_title(key)
         axes[idx].set_xlabel('value')
         axes[idx].set_ylabel('Frequency')
