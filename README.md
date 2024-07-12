@@ -9,3 +9,6 @@ Performance analysis of Causal Bandit algorithms
 ### 2. Genereate a visualization for the same SCM:
     > python SCM.py --graph_type parallel --n 2 --noise_types N(0,1) --plot
     >>> saves the generated plot to outputs/plots as a .png file
+### 3. Get the observational distribution for the SCM:
+   > python sampling.py --file_path <../../outputs/file_name.json>
+   > python sampling.py --file_path <../../outputs/file_name.json> --plot
