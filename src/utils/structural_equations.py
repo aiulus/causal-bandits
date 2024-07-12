@@ -18,9 +18,10 @@ PATH_SCM = "../../outputs/SCMs"
 PATH_PLOTS = "../../outputs/plots"
 MAX_DEGREE = 3  # For polynomial function generation
 # Set of coefficients to choose from
-PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
+# PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
+PRIMES = [-2, -1.5, -1, -0.5, 0.5, 1, 1.5, 2]
 
-
+# TODO: noises should appear as arguments in lambdas
 def generate_linear_function(parents, noise, coeffs):
     """
 

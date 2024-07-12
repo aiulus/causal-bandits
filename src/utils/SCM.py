@@ -12,24 +12,26 @@ import noises, plots, structural_equations, graph_generator
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
 
-
 # Set target destination for .json files containing graph structuress
 PATH_GRAPHS = "../../outputs/graphs"
 PATH_SCM = "../../outputs/SCMs"
 PATH_PLOTS = "../../outputs/plots"
 MAX_DEGREE = 3  # For polynomial function generation
 # Set of coefficients to choose from
-PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
-# Command line strings for the surrently supported set of distributions
+# PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
+PRIMES = [-2, -1.5, -1, -0.5, 0.5, 1, 1.5, 2]
+# Command line strings for the currently supported set of distributions
 DISTS = ['N', 'Exp', 'Ber']
 
 
 def parse_scm(input):
-    if isinstance(input, str):
-        # JSON input
-        data = json.loads(input)
-    elif isinstance(input, dict):
-        # Dictionary input
+    if isinstance(input, str):  # JSON input
+        try:
+            with open(input, 'r') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            print(f"No such file: {input}")
+    elif isinstance(input, dict):  # Dictionary input
         data = input
     else:
         raise ValueError("Input must be a JSON string or a dictionary")
@@ -45,6 +47,29 @@ def parse_scm(input):
     return nodes, G, functions, noise
 
 
+def load_graph_from_json(filepath):
+    try:
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        print(f"No such file: {filepath}")
+    G = nx.DiGraph()
+    G.add_nodes_from(data['nodes'])
+    G.add_edges_from(data['edges'])
+    return G
+
+
+def load_scm_from_json(cls, file_path):
+    graph = load_graph_from_json(file_path)
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+    nodes = data['nodes']
+    functions = data['functions']
+    noise_terms = data['noises']
+
+    return SCM(nodes, graph, functions, noise_terms)
+
+
 def parse_interventions(interventions):
     """
     Parse intervention strings like 'do(X_i=a)' into a dictionary.
@@ -57,6 +82,11 @@ def parse_interventions(interventions):
 
     return interventions_dict
 
+class lambdaSCM:
+    def __init__(self, scm):
+        self.vars, self.G = scm.nodes, scm.G
+        self.lambda_functions = parse_functions(scm.F, scm.N)
+        self.lambda_noises = parse_noises(scm.N)
 
 # TODO: Extend to other than just fully-observed SCM's
 class SCM:
@@ -176,14 +206,6 @@ class SCM:
             json.dump(scm_data, f, indent=2)
         print(f"SCM saved to {file_path}")
 
-    @classmethod
-    def load_from_json(cls, file_path):
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-        data['functions'] = {k: cls.str_to_func(v) for k, v in data['functions'].items()}
-        data['noise'] = {k: cls.str_to_func(v) for k, v in data['noise'].items()}
-        return cls(data)
-
     @staticmethod
     def func_to_str(func):
         return func
@@ -191,16 +213,6 @@ class SCM:
     @staticmethod
     def str_to_func(func_str):
         return eval(func_str)
-
-
-def load_graph(filepath):
-    print(f"Attemptin to open {filepath}")
-    with open(filepath, 'r') as f:
-        data = json.load(f)
-    G = nx.DiGraph()
-    G.add_nodes_from(data['nodes'])
-    G.add_edges_from(data['edges'])
-    return G
 
 
 def main():
@@ -224,8 +236,9 @@ def main():
     # Required for --graph_type random
     parser.add_argument("--p", type=float, help="Denseness of the graph / prob. of including any potential edge.")
     parser.add_argument("--pa_n", type=int, default=-1, help="Cardinality of pa_Y in G.")
-    parser.add_argument("--vstr", type=int,default=-1, help="Desired number of v-structures in the causal graph.")
-    parser.add_argument("--conf", type=int, default=-1, help="Desired number of confounding variables in the causal graph.")
+    parser.add_argument("--vstr", type=int, default=-1, help="Desired number of v-structures in the causal graph.")
+    parser.add_argument("--conf", type=int, default=-1,
+                        help="Desired number of confounding variables in the causal graph.")
     parser.add_argument("--intervene", type=str, help="JSON string representing interventions to perform.")
     parser.add_argument("--plot", action='store_true')
     # TODO: Currently no method for re-assigning default source/target paths
@@ -257,8 +270,8 @@ def main():
         graph_type = f"random_graph_N{args.n}_paY_{args.pa_n}_p_{args.p}_graph_N{args.n}"
         file_path = f"{PATH_GRAPHS}/{graph_type}.json"
     try:
-        graph = load_graph(file_path)
-        print("Successfully loaded the graph file.") # Debug statement
+        graph = load_graph_from_json(file_path)
+        print("Successfully loaded the graph file.")  # Debug statement
     except (FileNotFoundError, UnicodeDecodeError):
         print(f"No such file: {file_path}")
         generate_graph_args = [
@@ -272,11 +285,12 @@ def main():
         ]
         print("Trying again...")
         sys.argv = ['graph_generator.py'] + generate_graph_args
-        print(f"Calling the main function of graph_generator.py with the options {generate_graph_args}") # Debug statement
+        print(
+            f"Calling the main function of graph_generator.py with the options {generate_graph_args}")  # Debug statement
         graph_generator.main()
         print(f"Graph successfully saved under {file_path}")
 
-        graph = load_graph(file_path)
+        graph = load_graph_from_json(file_path)
 
     # TODO: Check if args.n or args.n + 1
     # TODO: Generation of actual distribution functions first during sampling

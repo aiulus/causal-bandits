@@ -18,24 +18,21 @@ PATH_DATA = "../../outputs/data"
 DISTS = ['N', 'Exp', 'Ber']
 
 
-def generate_distributions(noise_dict):
-    p_n = {}
+def generate_distribution(noise_term):
 
-    # TODO: too nested
-    for node, noise_spec in noise_dict.items():
-        dist_type = noise_spec['type']
-        params = noise_spec['params']
+    dist_type = noise_term[0]
+    params = noise_term[1:]
 
-        if dist_type == 'gaussian':
-            p_n[node] = lambda x, mu=params[0], sigma=params[1]: norm.rvs(mu, sigma, size=x)
-        elif dist_type == 'bernoulli':
-            p_n[node] = lambda x, p=params[0]: bernoulli.rvs(p, size=x)
-        elif dist_type == 'exp':
-            p_n[node] = lambda x, lam=params[0]: expon.rvs(scale=1 / lam, size=x)
-        else:
-            raise ValueError(f"Unsupported distribution type:{dist_type}")
+    if dist_type == 'gaussian':
+        return lambda x, mu=params[0], sigma=params[1]: norm.rvs(mu, sigma, size=x)
+    elif dist_type == 'bernoulli':
+        return lambda x, p=params[0]: bernoulli.rvs(p, size=x)
+    elif dist_type == 'exp':
+        return lambda x, lam=params[0]: expon.rvs(scale=1 / lam, size=x)
+    else:
+        raise ValueError(f"Unsupported distribution type:{dist_type}")
 
-    return p_n
+
 
 
 def parse_noise_string(noise_str):

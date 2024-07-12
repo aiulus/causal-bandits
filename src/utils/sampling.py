@@ -1,58 +1,102 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-from scipy.stats.distributions import norm, bernoulli, beta, gamma, expon
-import os
-import json
 import argparse
-import SCM
+import ast
+import json
+import csv
+import os
+import sys
+import re
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+import noises, plots, structural_equations, graph_generator, SCM
 
-# Set target destination for .json files containing graph structures
+sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
+
+# Set target destination for .json files containing graph structuress
 PATH_GRAPHS = "../../outputs/graphs"
 PATH_SCM = "../../outputs/SCMs"
 PATH_PLOTS = "../../outputs/plots"
 PATH_DATA = "../../outputs/data"
+MAX_DEGREE = 3  # For polynomial function generation
+# Set of coefficients to choose from
+PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
+# Command line strings for the currently supported set of distributions
+DISTS = ['N', 'Exp', 'Ber']
+
+# file_path = "..\..\outputs\SCMs\SCM_n7_chain-graph_polynomial-functions.json"
+file_path = "..\..\outputs\SCMs\SCM_n5_chain-graph_polynomial-functions.json"
+data_savepath = "..\..\outputs\data\DATA_SCM_n5_chain-graph_polynomial-functions_nsamples_100.csv"
 
 
-# Draws samples from the observational distribution of the provided SCM
-def sample_L1(scm, n_samples):
-    return scm.sample(n_samples)
-
-
-# Draws samples from the interventional distribution of the provided SCM
-def sample_L2(scm, interventions, n_samples):
-    scm.intervene(interventions)
-    return scm.sample(n_samples)
-
-
-# Draws samples from the counterfactual distribution of the provided SCM
-def sample_L3(scm, observations, interventions, n_samples):
-    return scm.counterfactual(observations, interventions, n_samples)
-
-
-def plot_distribution(data, variables, title):
-    df = pd.DataFrame(data)
-    if len(variables) == 1:
-        df[variables[0]].hist(bins=30)
+def evaluate_structural_equation(function_string, data_dict, noise_dict):
+    match_single_arg = re.search(r'lambda\s+(\w+)\s*:', function_string)
+    match_multiple_args = re.search(r'lambda\s*\(([^)]*)\)\s*:', function_string)
+    if match_multiple_args:
+        input_vars = match_multiple_args.group(1).split(',')
+    elif match_single_arg:
+        input_vars = [match_single_arg.group(1)]
     else:
-        pd.plotting.scatter_matrix(df[variables], alpha=0.2)
-    plt.title(title)
-    file_path = os.path.join(PATH_PLOTS, title + ".png")
-    plt.savefig(file_path)
-    plt.show()
+        raise ValueError(f"Invalid lambda function format: {function_string}")
+    # Clean up and map the input variables to data_dict entries
+    # input_vars = [var.strip() for var in input_vars]
+
+    # Replace 'N_Xi" with the corresponding noise data vectors
+    noise_vars = re.findall(r'N\w+', function_string)
+    noise_vars = [var[2:] for var in noise_vars]
+
+    print(f"Noise variables: {noise_vars}")  # Debug statement
+    print(f"Input variables: {input_vars}")  # Debug statement
+
+    # TODO: ATTENTION! Currently assuming additive noises. Due to storage preferences,
+    #  the noises don't appear in the function strings contained in the .json representation of the SCM.
+
+    function_string = re.sub(r'\s*\+\s*N_\w+', '', function_string)  # Remove terms like '+ N_Xi'
+
+    # Define the lambda function
+    SE_lambda = eval(function_string)
+
+    # Prepare the arguments
+    args = [data_dict[var] for var in input_vars]
+
+    # Evaluate the function element-wise on the input variables
+    result = SE_lambda(*args)
+
+    return result
+
+
+def save_to_csv(dict, path):
+    with open(path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Node', 'Values'])
+        for key, value in dict.items():
+            writer.writerow([key, value])
+
+def csv_to_dict(path):
+    data = {}
+
+    with open(path, mode='r') as f:
+        # reader = csv.DictReader(f)
+        reader = csv.reader(f)
+        for row in reader:
+            node = row[0]
+            # values = ast.literal_eval(row[1])
+            data[node] = row[1]
+
+    return data
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run probabilistic inference for a given SCM.")
-    parser.add_argument('--file_name', required=True, help="Please specify the name (without path!) of the SCM file.")
-    parser.add_argument('--mode', required=True, choices=['l1', 'l2', 'l3'],
-                        help="Please provide the distribution type: "
-                             "'l1' for observational, 'l2' for interventional, 'l3' for counterfactual data.")
+    parser = argparse.ArgumentParser(description="Generating L1, L2, L3 data from .json files representing SCM's.")
+    # parser.add_argument('--file_name', required=True, help="Please specify the name (without path!) of the SCM file.")
+   # parser.add_argument('--mode', required=True, choices=['l1', 'l2', 'l3'],
+    #                    help="Please provide the distribution type: "
+     #                        "'l1' for observational, 'l2' for interventional, 'l3' for counterfactual data.")
     parser.add_argument('--N', type=int, default=1000, help="Number of samples to generate")
     # Required for the option --mode l2 and --mode l3
     parser.add_argument('--do', type=str, nargs='+',
                         help="Please specify the interventions to be performed. Example: "
                              "'--do X_i 0' sets variable X_i to zero.")
+    # TODO: not a very practical way of passing info
     parser.add_argument('--observations_path', type=str,
                         help="Provide the path to the JSON file that contains the observations"
                              "to be used for constructing the observationally constrained SCM in mode 'l3'.")
@@ -61,35 +105,56 @@ def main():
 
     args = parser.parse_args()
 
-    path = os.path.join(PATH_SCM, args.file_name)
-    # scm_data = SCM.parse_scm(path)
-    # scm = SCM(scm_data)
-    with open(path, 'r') as f:
-        scm_json = f.read()
-
-    # scm_data = SCM.parse_scm(scm_json)
-    scm = SCM.SCM(scm_json)
-
-    if args.mode == 'l1':
-        data = sample_L1(scm, args.N)
-    elif args.mode == 'l2':
-        interventions = json.loads(args.do)
-        data = sample_L2(scm, interventions, args.N)
-    elif args.mode == 'l3':
-        interventions = json.loads(args.do)
-        observations = json.loads(args.observations_path)
-        data = sample_L3(scm, observations, interventions, args.N)
-    else:
-        raise ValueError("Unsupported mode. Please choose from ['l1', 'l2', 'l3'].")
-
-    file_name = args.file_name.replace('.json', '.csv')
-    save_name = f"{args.mode}".capitalize() + "_data_" + file_name
-    file_path = os.path.join(PATH_DATA, save_name)
-    data.to_csv(file_path, index=False)
-    print(f"Data saved to {file_path}")
-
     if args.plot:
-        plot_distribution(data, args.variables, args.mode)
+        dict = csv_to_dict(data_savepath)
+        plots.plot_distributions_from_dict(dict)
+        return
+
+
+
+    scm = SCM.SCM(file_path)
+    print(f"SCM variables: {scm.nodes}\n")
+    print(f"Graph ndoes: {scm.G.nodes}\n")
+    print(f"Edges: {scm.G.edges}\n")
+    print(f"Functions: {scm.F}\n")
+    print(f"Noises: {scm.N}")
+
+    G = nx.DiGraph()
+
+    n_samples = 100
+
+    noise_data = {}
+
+    for X_j in scm.G.nodes:
+        print(f"Parsing noise for {X_j}")
+        n_j_str = scm.N[X_j]
+        print(f"Obtained string representation of N_{X_j}: {n_j_str}")
+        samples = noises.generate_distribution(n_j_str)(n_samples)
+        # plots.plot_samples(samples, f"20 Samples ~ {file_path}")
+        noise_data[X_j] = samples
+
+    print(f"Noise data: {noise_data}")
+
+    data = {}
+
+    for X_j in nx.topological_sort(scm.G):
+        print(f"Next node is: {X_j}")
+        if scm.G.in_degree[X_j] == 0:
+            data[X_j] = noise_data[X_j]
+        else:
+            f_j_str = scm.F[X_j]
+            print(f"Now evaluating {f_j_str}...")
+            samples = evaluate_structural_equation(f_j_str, data, noise_data)
+            data[X_j] = samples
+
+        print(f"Sampled data: {data}")
+        # TODO: name of the .csv file should contain sample size information
+#        file_name = file_path.replace('.json', '.csv')
+#        save_name = "DATA" + file_name
+#        save_path = os.path.join(PATH_DATA, save_name)
+        save_to_csv(data, data_savepath)
+        plots.plot_distributions_from_dict(data)
+        print(f"Data saved to {data_savepath}")
 
 
 if __name__ == '__main__':

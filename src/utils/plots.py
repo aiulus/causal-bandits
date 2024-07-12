@@ -74,3 +74,34 @@ def draw_scm(scm_filename):
     print(f"Plot saved to {plot_filename}")
     plt.show()
     plt.close()
+
+def plot_samples(samples,title, bins=30, xlabel="x", ylabel="f(x)"):
+    plt.figure(figsize=(10, 6))
+    plt.hist(samples, bins=bins, edgecolor='k', alpha=0.7)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.grid(True)
+    plt.show()
+
+def plot_distributions_from_dict(dict):
+    num_plots = len(dict)
+    num_cols = 2 # Select the number of columns in the grid
+    num_rows = (num_plots + num_cols - 1) // num_cols
+
+    # Create a grid for the plots
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, num_rows * 5))
+    axes = axes.flatten()
+
+    for idx, (key, values) in enumerate(dict.items()):
+        axes[idx].hist(values, bins=30, edgecolor='k', alpha=0.7)
+        axes[idx].set_title(key)
+        axes[idx].set_xlabel('value')
+        axes[idx].set_ylabel('Frequency')
+
+    # Hide unused plots
+    for j in range(idx + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.tight_layout()
+    plt.show()
