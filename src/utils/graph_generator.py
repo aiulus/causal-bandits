@@ -27,7 +27,7 @@ def generate_parallel_graph(n, save=False):
     return G
 
 
-def generate_random_dag(n, p, save=False):
+def generate_random_dag(n, p):
     """
     Generate a random DAG G=(V,Ɛ), using the Erdős–Rényi model.
     :param save:
@@ -35,26 +35,24 @@ def generate_random_dag(n, p, save=False):
     :param p: Probability of including one of the binomial(n, 2) potential edges in Ɛ.
     :return: Graph G.
     """
+    # TODO: Rename nodes
     # G = nx.erdos_renyi_graph(n, p, directed=True)
     G = nx.DiGraph()
     # Construct the graph in topological order to ensure DAG'ness
-    nodes = list(range(n))
+    nodes = [f"X{n}" for n in list(range(1, n + 1))]
+    nodes.append('Y')
     G.add_nodes_from(nodes)  # Add nodes
     edges = [(u, v) for u in nodes for v in nodes if u < v and random.random() < p]  # Include edges with probability p
     G.add_edges_from(edges)  # Add edges
-    if save:
-        file_path = f"{PATH_GRAPHS}/random_graph_N{n}_p_{p}"
-        graph_data = json_graph.node_link_data(G)
-        with open(file_path, 'w') as f:
-            json.dump(graph_data, f)
-        print(f"Random graph saved to {file_path}")
+
     return G
 
 
-def erdos_with_properties(n, p, n_pa_Y=None, confs=None, vstr=None, save=False):
+def erdos_with_properties(n, p, n_pa_Y, confs, vstr, save=False):
     """
     Generate a random DAG G=(V,Ɛ) with certain properties using the Erdős–Rényi model.
 
+    :param save:
     :param n: Number of nodes in the graph.
     :param p: Probability of including one of the binomial(n, 2) potential edges in Ɛ.
     :param n_pa_Y: Cardinality of the parent set of reward node Y.
@@ -63,32 +61,42 @@ def erdos_with_properties(n, p, n_pa_Y=None, confs=None, vstr=None, save=False):
     :return: Graph G.
     """
     G = generate_random_dag(n, p)
-
+    print(f"ERDOS: Graph successfully created. Checking for other specifications...\n") # Debug statement
     # Ensure that the number of confounders in the graph is same as 'confs'
-    if confs is not None:
+    if confs != -1:
+        print("Applying number of confounders-constraint.\n") # Debug statement
         n_confs = count_confounders(G)
         while n_confs < confs:
             add_confounders(G)
+    else:
+        print("No confounders specified.\n") # Debug statement
     # Ensure the specified number of v-structures
-    if vstr is not None:
+    if vstr != -1:
+        print("Applying v-structures constraint.\n") # Debug statement
         n_vs = count_v_structures(G)
         while n_vs < vstr:
             add_v_structures(G)
+    else:
+        print("No v-structures specified.\n") # Debug statement
 
     # TODO: Fix the inconsistecy between #nodes when n_pa_Y exercised (n+1) and when not (n)
     # Ensure a specific number of parent nodes for the reward variable
-    if n_pa_Y is not None:
+    if n_pa_Y != -1:
         y = n
         pa_Y = random.sample(G.nodes, n_pa_Y)
         for parent in pa_Y:
             G.add_edge(parent, y)
+
+    print("Mapping graph to dict\n") # Debug statement
+    G_dict = {"nodes": list(G.nodes), "edges": list(G.edges)}
+
     if save:
-        file_path = f"{PATH_GRAPHS}/random_graph_N{n}_paY_{n_pa_Y}_p_{p}"
-        graph_data = json_graph.node_link_data(G)
-        with open(file_path, 'w') as f:
-            json.dump(graph_data, f)
-        print(f"Random graph saved to {file_path}")
-    return G
+        graph_type = f"random_graph_N{n}_paY_{n_pa_Y}_p_{p}"
+        print(f"Saving {graph_type}...\n")
+        save_graph(G_dict, graph_type, n)
+        print(f"Random graph saved to {PATH_GRAPHS}/{graph_type}")
+
+    return G_dict
 
 
 def count_confounders(G):
@@ -127,7 +135,7 @@ def count_v_structures(G):
     return n_v
 
 
-def add_confounders(G, num_confounders):
+def add_confounders(G):
     """
     Add confounders to the graph
     :param G: DAG G=(V,Ɛ)
@@ -135,24 +143,23 @@ def add_confounders(G, num_confounders):
     """
     nodes = list(G.nodes())
     # Make num_confounders - many randomly selected edges bidirectional, effectively inserting a confounder
-    for _ in range(num_confounders):
-        u, v = random.sample(nodes, 2)
-        if not G.has_edge(u, v) and not G.has_edge(v, u):
-            G.add_edge(u, v)
+    u, v = random.sample(nodes, 2)
+    if not G.has_edge(u, v) and not G.has_edge(v, u):
+        G.add_edge(u, v)
 
 
-def add_v_structures(G, num_v_structures):
+def add_v_structures(G):
     """
     Add v-structures to the graph.
     :param G: DAG G=(V,Ɛ)
     :param num_v_structures: number of node triples {X,Y,Z} that form a v-structure: X --> Y <-- Z, X -||- Z
     """
     nodes = list(G.nodes())
-    for _ in range(num_v_structures):
-        u, v, w = random.sample(nodes, 3)
-        if not G.has_edge(u, v) and not G.has_edge(v, u) and not G.has_edge(w, v) and not G.has_edge(v, w):
-            G.add_edge(u, v)
-            G.add_edge(w, v)
+
+    u, v, w = random.sample(nodes, 3)
+    if not G.has_edge(u, v) and not G.has_edge(v, u) and not G.has_edge(w, v) and not G.has_edge(v, w):
+        G.add_edge(u, v)
+        G.add_edge(w, v)
 
 
 def save_graph(graph, graph_type, n):
@@ -178,20 +185,19 @@ def main():
 
     args = parser.parse_args()
 
-    graph_type = args.graph_type
-
     if args.graph_type == 'chain':
-        graph = generate_chain_graph(args.n, args.save)
+        generate_chain_graph(args.n, args.save)
     elif args.graph_type == 'parallel':
-        graph = generate_parallel_graph(args.n, args.save)
+        generate_parallel_graph(args.n, args.save)
     elif args.graph_type == 'random':
         if args.p is None:
             print("Please specify the probability of including an edge with --p for random graph generation.")
             return
         if args.pa_n is None:
             print("Please specify the cardinality of the parent set for the reward variable Y.")
-        graph = erdos_with_properties(args.n, args.p, args.pa_n, args.conf, args.vstr, args.save)
-        graph_type = f"random_pa{args.pa_n}_conf{args.conf}_vstr{args.vstr}"
+        # erdos_with_properties(args.n, args.p, args.pa_n, args.conf, args.vstr, args.save)
+        erdos_with_properties(args.n, args.p, args.pa_n, args.conf, args.vstr, args.save)
+        # graph_type = f"random_pa{args.pa_n}_conf{args.conf}_vstr{args.vstr}"
     else:
         print("Please specify a type of graph. Currently supported: ['chain', 'parallel', 'random']")
         return

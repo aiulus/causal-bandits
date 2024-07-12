@@ -20,6 +20,7 @@ MAX_DEGREE = 3  # For polynomial function generation
 # Set of coefficients to choose from
 PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
 
+
 def generate_linear_function(parents, noise, coeffs):
     """
 
@@ -77,6 +78,7 @@ def generate_functions(graph, noise_vars, funct_type='linear'):
             raise ValueError(f"Unsupported function type: {funct_type}. Use 'linear' or 'polynomial'.")
 
     return functions
+
 
 def parse_functions(func_dict):
     """

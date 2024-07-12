@@ -1,0 +1,21 @@
+{
+  "nodes": [
+    0,
+    1
+  ],
+  "edges": [],
+  "functions": {
+    "0": "lambda : N_0",
+    "1": "lambda : N_1"
+  },
+  "noise": {
+    "0": [
+      "bernoulli",
+      0.5
+    ],
+    "1": [
+      "bernoulli",
+      0.5
+    ]
+  }
+}

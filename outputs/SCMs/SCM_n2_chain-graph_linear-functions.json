@@ -16,12 +16,7 @@
   ],
   "functions": {
     "X1": "lambda : N_X1",
-    "X2": "lambda X1: 1.5940538676515488 * X1 + N_X2",
-    "Y": "lambda X2: -0.4637809431107469 * X2 + N_Y"
+    "X2": "lambda X1: -11 * X1 + N_X2",
+    "Y": "lambda X2: 7 * X2 + N_Y"
   },
-  "noise": [
-    "N",
-    "0",
-    "2"
-  ]
-}
+  "noise": 

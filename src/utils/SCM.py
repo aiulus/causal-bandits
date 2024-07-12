@@ -194,6 +194,7 @@ class SCM:
 
 
 def load_graph(filepath):
+    print(f"Attemptin to open {filepath}")
     with open(filepath, 'r') as f:
         data = json.load(f)
     G = nx.DiGraph()
@@ -221,10 +222,10 @@ def main():
                              "'polynomial']")
     parser.add_argument("--n", type=int, required=True, help="Number of (non-reward) nodes in the graph.")
     # Required for --graph_type random
-    parser.add_argument("--p", type=int, help="Denseness of the graph / prob. of including any potential edge.")
-    parser.add_argument("--pa_n", type=int, default=1, help="Cardinality of pa_Y in G.")
-    parser.add_argument("--vstr", type=int, help="Desired number of v-structures in the causal graph.")
-    parser.add_argument("--conf", type=int, help="Desired number of confounding variables in the causal graph.")
+    parser.add_argument("--p", type=float, help="Denseness of the graph / prob. of including any potential edge.")
+    parser.add_argument("--pa_n", type=int, default=-1, help="Cardinality of pa_Y in G.")
+    parser.add_argument("--vstr", type=int,default=-1, help="Desired number of v-structures in the causal graph.")
+    parser.add_argument("--conf", type=int, default=-1, help="Desired number of confounding variables in the causal graph.")
     parser.add_argument("--intervene", type=str, help="JSON string representing interventions to perform.")
     parser.add_argument("--plot", action='store_true')
     # TODO: Currently no method for re-assigning default source/target paths
@@ -253,25 +254,27 @@ def main():
     graph_type = f"{args.graph_type}_graph_N{args.n}"
     file_path = f"{PATH_GRAPHS}/{graph_type}.json"
     if args.graph_type == 'random':
-        graph_type = f"random_graph_N{args.n}_paY_{args.pa_n}_p_{args.p}"
-        file_path = f"{PATH_GRAPHS}/{graph_type}"
+        graph_type = f"random_graph_N{args.n}_paY_{args.pa_n}_p_{args.p}_graph_N{args.n}"
+        file_path = f"{PATH_GRAPHS}/{graph_type}.json"
     try:
         graph = load_graph(file_path)
-        print("Successfully loaded the graph file.")
+        print("Successfully loaded the graph file.") # Debug statement
     except (FileNotFoundError, UnicodeDecodeError):
         print(f"No such file: {file_path}")
         generate_graph_args = [
             '--graph_type', f"{args.graph_type}",
             '--n', f"{args.n}",
-            '--p', f"{args.n}",
+            '--p', f"{args.p}",
             '--pa_n', f"{args.pa_n}",
-            # '--vstr', f"{args.vstr}",
-            # '--conf', f"{args.conf}",
+            '--vstr', f"{args.vstr}",
+            '--conf', f"{args.conf}",
             '--save'
         ]
         print("Trying again...")
         sys.argv = ['graph_generator.py'] + generate_graph_args
+        print(f"Calling the main function of graph_generator.py with the options {generate_graph_args}") # Debug statement
         graph_generator.main()
+        print(f"Graph successfully saved under {file_path}")
 
         graph = load_graph(file_path)
 

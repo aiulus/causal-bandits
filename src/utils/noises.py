@@ -8,6 +8,7 @@ import argparse
 import SCM
 import re
 
+
 # Set target destination for .json files containing graph structures
 PATH_GRAPHS = "../../outputs/graphs"
 PATH_SCM = "../../outputs/SCMs"
@@ -69,12 +70,12 @@ def parse_noise(noise, nodes):
 
     num_nodes = len(nodes)
     counts = {distr_str: noise.count(distr_str) for distr_str in DISTS}
-    arg_count = sum(counts.values())
+    arg_count = len(noise)
 
-    if len(noise) == 1:
+    if arg_count == 1:
         noise = noise * num_nodes
-    elif len(noise) != num_nodes:
-        raise ValueError(f"Expected either 1 or {num_nodes} noise distributions, but got {len(noise)}: \n {noise}")
+    elif arg_count != num_nodes:
+        raise ValueError(f"Expected either 1 or {num_nodes} noise distributions, but got {arg_count}: \n {noise}")
 
     noise_dict = {node: parse_noise_string(noise_str) for node, noise_str in zip(nodes, noise)}
 
