@@ -24,10 +24,14 @@ def draw_scm(scm_filename):
     G.add_nodes_from(scm_data['nodes'])
     G.add_edges_from(scm_data['edges'])
 
+    # TODO: Best layouts for various types of graphs
+
     try: # Define the layout
-        pos = nx.planar_layout(G)
+        # pos = nx.spiral_layout(G)
+        #pos = nx.arf_layout(G)
+        pos = nx.shell_layout(G)
     except nx.NetworkXException:
-        pos = nx.spiral_layout(G)
+        pos = nx.planar_layout(G)
 
     # Draw the regular nodes
     nx.draw_networkx_nodes(G, pos, node_color='none', edgecolors='black', node_size=1000)
@@ -96,11 +100,11 @@ def plot_distributions_from_dict(dict):
     axes = axes.flatten()
 
     for idx, (key, values) in enumerate(dict.items()):
-        # axes[idx].hist(values, bins=30, edgecolor='k', alpha=0.7)
-        axes[idx].plot(values)
+        axes[idx].hist(values, bins=30, edgecolor='k', alpha=0.7)
         axes[idx].set_title(key)
         axes[idx].set_xlabel('value')
         axes[idx].set_ylabel('Frequency')
+        axes[idx].set_yscale('log')
 
     # Hide unused plots
     for j in range(idx + 1, len(axes)):

@@ -32,8 +32,8 @@ DISTS = ['N', 'Exp', 'Ber']
 # file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions.json"
 # file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions_['N(0,1)']_noises.json"
 # file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions_['N(2,10)']_noises_p0.3.json" # TODO: Didn't work
-file_path = "..\..\outputs\SCMs\SCM_n7_chain-graph_polynomial-functions_['N(2,10)']_noises_pNone.json"
-data_savepath = "..\..\outputs\data\DATA_SCM_n7_chain-graph_polynomial-functions_['N(2,10)']_noises_pNone.csv"
+file_path = "..\..\outputs\SCMs\SCM_n7_chain-graph_polynomial-functions_['N(2,0.5)']_noises_pNone.json"
+data_savepath = "..\..\outputs\data\DATA_SCM_n7_chain-graph_polynomial-functions_['N(2,0.5)']_noises_pNone.csv"
 
 
 def evaluate_structural_equation(function_string, data_dict, noise_dict):
