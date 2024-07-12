@@ -25,7 +25,7 @@ DISTS = ['N', 'Exp', 'Ber']
 
 # file_path = "..\..\outputs\SCMs\SCM_n7_chain-graph_polynomial-functions.json"
 file_path = "..\..\outputs\SCMs\SCM_n5_chain-graph_polynomial-functions.json"
-data_savepath = "..\..\outputs\data\DATA_SCM_n5_chain-graph_polynomial-functions_nsamples_100.csv"
+data_savepath = "..\..\outputs\data\DATA_SCM_n5_chain-graph_polynomial-functions_nsamples_1000.csv"
 
 
 def evaluate_structural_equation(function_string, data_dict, noise_dict):
@@ -67,9 +67,9 @@ def evaluate_structural_equation(function_string, data_dict, noise_dict):
 def save_to_csv(dict, path):
     with open(path, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Node', 'Values'])
         for key, value in dict.items():
-            writer.writerow([key, value])
+            value_str = ','.join(map(str, value))
+            writer.writerow([key, value_str])
 
 def csv_to_dict(path):
     data = {}
@@ -79,8 +79,8 @@ def csv_to_dict(path):
         reader = csv.reader(f)
         for row in reader:
             node = row[0]
-            # values = ast.literal_eval(row[1])
-            data[node] = row[1]
+            values = list(map(float, row[1].split(',')))
+            data[node] = values
 
     return data
 
@@ -121,7 +121,7 @@ def main():
 
     G = nx.DiGraph()
 
-    n_samples = 100
+    n_samples = 1000
 
     noise_data = {}
 
