@@ -244,8 +244,10 @@ def main():
     parser.add_argument("--path_plots", type=str, default=PATH_PLOTS, help="Path to save the plots.")
 
     args = parser.parse_args()
+    noise_str = [str(noise_str).replace("'", "") for noise_str in args.noise_types]
+    noise_str = ''.join(map(str, noise_str))
 
-    save_path = f"SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{args.noise_types}_noises_p{args.p}.json"
+    save_path = f"SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{noise_str}_noises_p{args.p}.json"
 
     if args.plot:
         plots.draw_scm(save_path)

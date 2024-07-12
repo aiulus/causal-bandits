@@ -12,14 +12,28 @@ import noises, plots, structural_equations, graph_generator, SCM
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
 
-# Set target destination for sourcefiles
+# Set target destination for .json files containing graph structuress
 PATH_GRAPHS = "../../outputs/graphs"
 PATH_SCM = "../../outputs/SCMs"
 PATH_PLOTS = "../../outputs/plots"
 PATH_DATA = "../../outputs/data"
 MAX_DEGREE = 3  # For polynomial function generation
+# Set of coefficients to choose from
+PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
 # Command line strings for the currently supported set of distributions
 DISTS = ['N', 'Exp', 'Ber']
+
+# file_path = "..\..\outputs\SCMs\SCM_n7_chain-graph_polynomial-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n5_chain-graph_polynomial-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_parallel-graph_linear-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions.json"
+#file_path = "..\..\outputs\SCMs\SCM_n10_parallel-graph_polynomial-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions_['N(0,1)']_noises.json"
+# file_path = "..\..\outputs\SCMs\SCM_n7_random-graph_polynomial-functions_['N(2,10)']_noises_p0.3.json" # TODO: Didn't work
+file_path = "..\..\outputs\SCMs\SCM_n7_chain-graph_polynomial-functions_['N(2,0.5)']_noises_pNone.json"
+data_savepath = "..\..\outputs\data\DATA_SCM_n7_chain-graph_polynomial-functions_['N(2,0.5)']_noises_pNone.csv"
 
 
 def evaluate_structural_equation(function_string, data_dict, noise_dict):
@@ -68,7 +82,6 @@ def save_to_csv(dict, path):
             value_str = ','.join(map(str, value))
             writer.writerow([key, value_str])
 
-
 def csv_to_dict(path):
     data = {}
 
@@ -85,11 +98,10 @@ def csv_to_dict(path):
 
 def main():
     parser = argparse.ArgumentParser(description="Generating L1, L2, L3 data from .json files representing SCM's.")
-    parser.add_argument('--file_name', required=True,
-                        help="Please specify the name (not the full path!) of the SCM file.")
-    # parser.add_argument('--mode', required=True, choices=['l1', 'l2', 'l3'],
+    # parser.add_argument('--file_name', required=True, help="Please specify the name (without path!) of the SCM file.")
+   # parser.add_argument('--mode', required=True, choices=['l1', 'l2', 'l3'],
     #                    help="Please provide the distribution type: "
-    #                        "'l1' for observational, 'l2' for interventional, 'l3' for counterfactual data.")
+     #                        "'l1' for observational, 'l2' for interventional, 'l3' for counterfactual data.")
     parser.add_argument('--N', type=int, default=1000, help="Number of samples to generate")
     # Required for the option --mode l2 and --mode l3
     parser.add_argument('--do', type=str, nargs='+',
@@ -101,17 +113,15 @@ def main():
                              "to be used for constructing the observationally constrained SCM in mode 'l3'.")
     parser.add_argument('--variables', nargs='+', help="Variables to visualize.")
     parser.add_argument('--plot', action='store_true')
-    parser.add_argument('--n_samples', type=int, default=1000,
-                        help="Specify the number of samples to be generated with '--n_samples'")
 
     args = parser.parse_args()
-    file_path = f"{PATH_SCM}/{args.file_name}"
-    data_savepath = f"{PATH_DATA}/{args.file_name}".replace('.json', '.csv')
 
     if args.plot:
         dict = csv_to_dict(data_savepath)
         plots.plot_distributions_from_dict(dict)
         return
+
+
 
     scm = SCM.SCM(file_path)
     print(f"SCM variables: {scm.nodes}\n")
@@ -120,13 +130,18 @@ def main():
     print(f"Functions: {scm.F}\n")
     print(f"Noises: {scm.N}")
 
+    G = nx.DiGraph()
+
+    n_samples = 1000
+
     noise_data = {}
 
     for X_j in scm.G.nodes:
         print(f"Parsing noise for {X_j}")
         n_j_str = scm.N[X_j]
         print(f"Obtained string representation of N_{X_j}: {n_j_str}")
-        samples = noises.generate_distribution(n_j_str)(args.n_samples)
+        samples = noises.generate_distribution(n_j_str)(n_samples)
+        # plots.plot_samples(samples, f"20 Samples ~ {file_path}")
         noise_data[X_j] = samples
 
     print(f"Noise data: {noise_data}")
@@ -145,9 +160,9 @@ def main():
 
         print(f"Sampled data: {data}")
         # TODO: name of the .csv file should contain sample size information
-        #        file_name = file_path.replace('.json', '.csv')
-        #        save_name = "DATA" + file_name
-        #        save_path = os.path.join(PATH_DATA, save_name)
+#        file_name = file_path.replace('.json', '.csv')
+#        save_name = "DATA" + file_name
+#        save_path = os.path.join(PATH_DATA, save_name)
         save_to_csv(data, data_savepath)
         # plots.plot_distributions_from_dict(data)
         print(f"Data saved to {data_savepath}")
