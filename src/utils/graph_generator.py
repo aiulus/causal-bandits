@@ -3,11 +3,11 @@ import json
 import os
 import random
 import networkx as nx
-from networkx.readwrite import json_graph
+import io_mgmt
 
-# Set target destination for .json files containing graph structures
-PATH_GRAPHS = "../../outputs/graphs"
+config = io_mgmt.configuration_loader()
 
+PATH_GRAPHS = config['PATH_GRAPHS']
 
 def generate_chain_graph(n, save=False):
     nodes = [f"X{i}" for i in range(1, n + 1)] + ["Y"]

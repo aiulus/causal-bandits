@@ -7,21 +7,17 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
-# from src.utils import noises, plots, structural_equations, graph_generator
-import noises, plots, structural_equations, graph_generator
+import noises, plots, structural_equations, graph_generator, io_mgmt
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
 
-# Set target destination for .json files containing graph structuress
-PATH_GRAPHS = "../../outputs/graphs"
-PATH_SCM = "../../outputs/SCMs"
-PATH_PLOTS = "../../outputs/plots"
-MAX_DEGREE = 3  # For polynomial function generation
-# Set of coefficients to choose from
-# PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
-PRIMES = [-2, -1.5, -1, -0.5, 0.5, 1, 1.5, 2]
-# Command line strings for the currently supported set of distributions
-DISTS = ['N', 'Exp', 'Ber']
+config = io_mgmt.configuration_loader()
+PATH_GRAPHS = config['PATH_GRAPHS']
+PATH_SCM = config['PATH_SCMs']
+PATH_PLOTS = config['PATH_PLOTS']
+MAX_DEGREE = config['MAX_POLYNOMIAL_DEGREE']
+COEFFS = config['COEFFICIENTS']
+DISTS = config['DISTS']
 
 
 def parse_scm(input):
@@ -210,7 +206,6 @@ class SCM:
     @staticmethod
     def str_to_func(func_str):
         return eval(func_str)
-
 
 def main():
     parser = argparse.ArgumentParser("Structural Causal Model (SCM) operations.")

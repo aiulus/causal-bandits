@@ -1,14 +1,17 @@
-import numpy as np
 import json
 import matplotlib.pyplot as plt
 import networkx as nx
 import os
 
-# Set target destination for .json files containing graph structures
-PATH_GRAPHS = "../../outputs/graphs"
-PATH_SCM = "../../outputs/SCMs"
-PATH_PLOTS = "../../outputs/plots"
-MAX_DEGREE = 3  # For polynomial function generation
+import io_mgmt
+
+config = io_mgmt.configuration_loader()
+PATH_GRAPHS = config['PATH_GRAPHS']
+PATH_SCM = config['PATH_SCMs']
+PATH_PLOTS = config['PATH_PLOTS']
+MAX_DEGREE = config['MAX_POLYNOMIAL_DEGREE']
+COEFFS = config['COEFFICIENTS']
+DISTS = config['DISTS']
 
 
 def draw_scm(scm_filename):

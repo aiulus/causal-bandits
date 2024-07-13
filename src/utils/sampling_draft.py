@@ -8,20 +8,17 @@ import re
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import noises, plots, structural_equations, graph_generator, SCM
+import noises, plots, structural_equations, graph_generator, SCM, io_mgmt
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
 
-# Set target destination for .json files containing graph structuress
-PATH_GRAPHS = "../../outputs/graphs"
-PATH_SCM = "../../outputs/SCMs"
-PATH_PLOTS = "../../outputs/plots"
-PATH_DATA = "../../outputs/data"
-MAX_DEGREE = 3  # For polynomial function generation
-# Set of coefficients to choose from
-PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
-# Command line strings for the currently supported set of distributions
-DISTS = ['N', 'Exp', 'Ber']
+config = io_mgmt.configuration_loader()
+PATH_GRAPHS = config['PATH_GRAPHS']
+PATH_SCM = config['PATH_SCMs']
+PATH_PLOTS = config['PATH_PLOTS']
+MAX_DEGREE = config['MAX_POLYNOMIAL_DEGREE']
+COEFFS = config['COEFFICIENTS']
+DISTS = config['DISTS']
 
 # file_path = "..\..\outputs\SCMs\SCM_n7_chain-graph_polynomial-functions.json"
 # file_path = "..\..\outputs\SCMs\SCM_n5_chain-graph_polynomial-functions.json"

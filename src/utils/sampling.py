@@ -8,18 +8,17 @@ import re
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import noises, plots, structural_equations, graph_generator, SCM
+import noises, plots, structural_equations, graph_generator, SCM, io_mgmt
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
 
-# Set target destination for sourcefiles
-PATH_GRAPHS = "../../outputs/graphs"
-PATH_SCM = "../../outputs/SCMs"
-PATH_PLOTS = "../../outputs/plots"
-PATH_DATA = "../../outputs/data"
-MAX_DEGREE = 3  # For polynomial function generation
-# Command line strings for the currently supported set of distributions
-DISTS = ['N', 'Exp', 'Ber']
+config = io_mgmt.configuration_loader()
+PATH_GRAPHS = config['PATH_GRAPHS']
+PATH_SCM = config['PATH_SCMs']
+PATH_PLOTS = config['PATH_PLOTS']
+MAX_DEGREE = config['MAX_POLYNOMIAL_DEGREE']
+PATH_DATA = config['PATH_DATA']
+DISTS = config['DISTS']
 
 
 def evaluate_structural_equation(function_string, data_dict, noise_dict):

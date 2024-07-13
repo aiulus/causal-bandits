@@ -1,22 +1,15 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 from scipy.stats.distributions import norm, bernoulli, beta, gamma, expon
-import os
-import json
-import argparse
-import SCM
 import re
 
+import io_mgmt
 
-# Set target destination for .json files containing graph structures
-PATH_GRAPHS = "../../outputs/graphs"
-PATH_SCM = "../../outputs/SCMs"
-PATH_PLOTS = "../../outputs/plots"
-PATH_DATA = "../../outputs/data"
-# Command line strings for the surrently supported set of distributions
-DISTS = ['N', 'Exp', 'Ber']
-
+config = io_mgmt.configuration_loader()
+PATH_GRAPHS = config['PATH_GRAPHS']
+PATH_SCM = config['PATH_SCMs']
+PATH_PLOTS = config['PATH_PLOTS']
+MAX_DEGREE = config['MAX_POLYNOMIAL_DEGREE']
+COEFFS = config['COEFFICIENTS']
+DISTS = config['DISTS']
 
 def generate_distribution(noise_term):
 

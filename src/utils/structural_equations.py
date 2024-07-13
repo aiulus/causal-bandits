@@ -1,25 +1,17 @@
-import argparse
-import json
 import sys
-import os
-
-import networkx as nx
 import numpy as np
-from scipy.stats import norm, bernoulli, expon
-import matplotlib.pyplot as plt
-import re
+
+import io_mgmt
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
-import graph_generator, plots
 
-# Set target destination for .json files containing graph structures
-PATH_GRAPHS = "../../outputs/graphs"
-PATH_SCM = "../../outputs/SCMs"
-PATH_PLOTS = "../../outputs/plots"
-MAX_DEGREE = 3  # For polynomial function generation
-# Set of coefficients to choose from
-# PRIMES = [-11, -7, -5, -3, -2, 2, 3, 5, 7, 11]
-PRIMES = [-2, -1.5, -1, -0.5, 0.5, 1, 1.5, 2]
+config = io_mgmt.configuration_loader()
+PATH_GRAPHS = config['PATH_GRAPHS']
+PATH_SCM = config['PATH_SCMs']
+PATH_PLOTS = config['PATH_PLOTS']
+MAX_DEGREE = config['MAX_POLYNOMIAL_DEGREE']
+COEFFS = config['COEFFICIENTS']
+DISTS = config['DISTS']
 
 # TODO: noises should appear as arguments in lambdas
 def generate_linear_function(parents, noise, coeffs):
@@ -65,13 +57,13 @@ def generate_functions(graph, noise_vars, funct_type='linear'):
         parents = list(graph.predecessors(node))
         if funct_type == 'linear':
             # Randomly pick the coefficients
-            coeffs = np.random.choice(PRIMES, size=len(parents))
+            coeffs = np.random.choice(COEFFS, size=len(parents))
             # coeffs = np.random.randn(len(parents))
             # functions[node] = generate_linear_function(parents, noise_vars[node], coeffs)
             functions[node] = generate_linear_function(parents, f"N_{node}", coeffs)
         elif funct_type == 'polynomial':
             degrees = np.random.randint(1, MAX_DEGREE + 1, size=len(parents))
-            coeffs = np.random.choice(PRIMES, size=len(parents))
+            coeffs = np.random.choice(COEFFS, size=len(parents))
             # coeffs = np.random.randn(len(parents))
             # functions[node] = generate_polynomial(parents, noise_vars[node], coeffs, degrees)
             functions[node] = generate_polynomial(parents, f"N_{node}", coeffs, degrees)
