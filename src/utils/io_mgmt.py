@@ -25,19 +25,19 @@ def append_unique_id(filename):
 
 
 def args_to_filename(args, file_type, base_path):
-    # stip away apostrophes to avoid misinterpretation of user input
-    noise_str = ''.join(map(lambda s: s.replace("'", ""), args.noise_types))
-
     # Specify name components common to all user inputs
     components = [
         f"SCM_n{args.n}",
         f"{args.graph_type}_graph"
     ]
 
+    # Add non-graph related property specifications
     if args.funct_type is not None:
         components.append(f"{args.funct_type}_functions")
     if args.noise_types is not None:
-        components.append(f"{args.noise_types}")
+        # stip away apostrophes to avoid misinterpretation of user input
+        noise_str = ''.join(map(lambda s: s.replace("'", ""), args.noise_types))
+        components.append(f"{noise_str}")
 
     # Include additional information in the file name when provided
     if args.graph_type == 'random':
@@ -53,8 +53,29 @@ def args_to_filename(args, file_type, base_path):
     return os.path.join(base_path, filename)
 
 
+def make_do_suffix(do_list):
+    suffix = "_do"
+
+    for item in do_list:
+        variable, value = item.strip('()').strip(' ').split(',')
+        suffix += f"{variable}-{value}"
+    return suffix
+
+
+def parse_interventions(do_list):
+    do_dict = {}
+    if not isinstance(do_list, list):
+        do_list = [do_list]
+    for intervention in do_list:
+        variable, value = intervention.strip('()').strip(' ').split(',')
+        do_dict[variable] = value
+
+    return do_dict
+
+
 def configuration_loader(config_file="global_variables.json"):
-    config_path = os.path.join(os.path.dirname(__file__), config_file)
+    # TODO: This assumes all scripts that have a dependency on configuration_loader are two levels deep
+    config_path = f"../../config/{config_file}"
     with open(config_path, 'r') as f:
         config = json.load(f)
     return config

@@ -167,3 +167,56 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+def discarded_get_structural_equations(self):
+    F = {}
+
+    noise = noises.parse_noise(self.N)
+    noise_dists = noises.generate_distributions(noise)
+
+    # Make sure that each node is parsed after its parents
+    for j, X_j in enumerate(nx.topological_sort(self.G)):
+        x_j = self.nodes[j]
+        pa_j_list = [node for node in self.G.predecessors(x_j)]  # Get the list of parents of j
+        n_j = noise_dists.get(j)  # Get the noise term
+
+        if len(pa_j_list) == 0:  # If X_j is a source node, f_j(pa_j, N_j) = N_j
+            F[x_j] = n_j
+            continue
+
+        # Evaluate the structural equation
+        fj_str = list(self.F.items())[j]
+        f_j = eval(fj_str[1])
+
+        # Update F // Additive noises
+        F[x_j] = lambda x: f_j(x) + n_j(x)
+
+    return F
+
+def discarded_sample(self, n_samples=1):
+    """Generate random samples from the SCM by independently sampling noise variables in topological order of the
+    causal graph, and recursively propagating the noise distributions according to the structural equations."""
+
+    # Initialize a dictionary {X_j: data ~ P_Xj s.t. |data| = n_samples}
+    data = {X_j: np.zeros(n_samples) for X_j in self.G.nodes}
+
+    # Get structural equations
+    F = self.get_structural_equations()
+
+    # Make sure that each node is parsed after its parents
+    for j, X_j in enumerate(nx.topological_sort(self.G)):
+        # TODO: still single arg not populated to |V| - many
+
+        # Generate noise samples for the current node
+        # noise_samples = noise_dists.get(j)(n_samples)
+
+        x_j = self.nodes[j]
+
+        f_j = F.get(x_j)
+
+        data[x_j] = f_j(n_samples)
+
+    return data
+
+#    noise_str = [str(noise_str).replace("'", "") for noise_str in args.noise_types]
+#    noise_str = ''.join(map(str, noise_str))

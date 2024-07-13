@@ -58,14 +58,10 @@ def generate_functions(graph, noise_vars, funct_type='linear'):
         if funct_type == 'linear':
             # Randomly pick the coefficients
             coeffs = np.random.choice(COEFFS, size=len(parents))
-            # coeffs = np.random.randn(len(parents))
-            # functions[node] = generate_linear_function(parents, noise_vars[node], coeffs)
             functions[node] = generate_linear_function(parents, f"N_{node}", coeffs)
         elif funct_type == 'polynomial':
             degrees = np.random.randint(1, MAX_DEGREE + 1, size=len(parents))
             coeffs = np.random.choice(COEFFS, size=len(parents))
-            # coeffs = np.random.randn(len(parents))
-            # functions[node] = generate_polynomial(parents, noise_vars[node], coeffs, degrees)
             functions[node] = generate_polynomial(parents, f"N_{node}", coeffs, degrees)
         else:
             raise ValueError(f"Unsupported function type: {funct_type}. Use 'linear' or 'polynomial'.")

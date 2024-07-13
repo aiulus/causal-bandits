@@ -27,14 +27,13 @@ def draw_scm(scm_filename):
     G.add_nodes_from(scm_data['nodes'])
     G.add_edges_from(scm_data['edges'])
 
-    # TODO: Best layouts for various types of graphs
+    # TODO: Best layouts for various types of graphs / possibility to specify the layout / custom layout
+    # other good options 'nx.spiral_layout(G)', ' nx.arf_layout(G)'
 
-    try: # Define the layout
-        # pos = nx.spiral_layout(G)
-        #pos = nx.arf_layout(G)
-        pos = nx.shell_layout(G)
-    except nx.NetworkXException:
+    try:  # Define the layout
         pos = nx.planar_layout(G)
+    except nx.NetworkXException:
+        pos = nx.shell_layout(G)
 
     # Draw the regular nodes
     nx.draw_networkx_nodes(G, pos, node_color='none', edgecolors='black', node_size=1000)
@@ -50,22 +49,21 @@ def draw_scm(scm_filename):
     noise_labels = {}
 
     for i, node in enumerate(scm_data['nodes']):
-        noise_node = f"N_{i+1}"
-        # noise_dist = noise[node]
+        noise_node = f"N_{i + 1}"
         noise_nodes.append(noise_node)
         G.add_node(noise_node)
         G.add_edge(noise_node, node)
         pos[noise_node] = (pos[node][0], pos[node][1] + 1)
         noise_labels[node] = noise_node
 
-        # Create labels for noise nodes
-        # TODO
+    # TODO : Create labels for noise nodes
     # Draw the noise nodes
-    nx.draw_networkx_nodes(G, pos, nodelist=noise_nodes, node_shape='o', node_color='white',edgecolors='black', node_size=1000, alpha=0.5)
-    nx.draw_networkx_edges(G, pos, edgelist=[(f"N_{i+1}", scm_data['nodes'][i]) for i in range(len(scm_data['nodes']))],
+    nx.draw_networkx_nodes(G, pos, nodelist=noise_nodes, node_shape='o', node_color='white',
+                           edgecolors='black', node_size=1000, alpha=0.5)
+    nx.draw_networkx_edges(G, pos,
+                           edgelist=[(f"N_{i + 1}", scm_data['nodes'][i]) for i in range(len(scm_data['nodes']))],
                            style='dashed', edge_color='black', arrows=True,
                            min_source_margin=14.5, min_target_margin=14.5, arrowsize=15)
-    # TODO: draw noise labels
 
     # Display the functions next to the graph
     functions = scm_data['functions']
@@ -84,7 +82,8 @@ def draw_scm(scm_filename):
     plt.show()
     plt.close()
 
-def plot_samples(samples,title, bins=30, xlabel="x", ylabel="f(x)"):
+
+def plot_samples(samples, title, bins=30, xlabel="x", ylabel="f(x)"):
     plt.figure(figsize=(10, 6))
     plt.hist(samples, bins=bins, edgecolor='k', alpha=0.7)
     plt.title(title)
@@ -93,9 +92,10 @@ def plot_samples(samples,title, bins=30, xlabel="x", ylabel="f(x)"):
     plt.grid(True)
     plt.show()
 
-def plot_distributions_from_dict(dict):
+
+def plot_distributions_from_dict(dict, save=False):
     num_plots = len(dict)
-    num_cols = 2 # Select the number of columns in the grid
+    num_cols = 2  # Select the number of columns in the grid
     num_rows = (num_plots + num_cols - 1) // num_cols
 
     # Create a grid for the plots
@@ -107,7 +107,7 @@ def plot_distributions_from_dict(dict):
         axes[idx].set_title(key)
         axes[idx].set_xlabel('value')
         axes[idx].set_ylabel('Frequency')
-        axes[idx].set_yscale('log')
+        # axes[idx].set_yscale('log')
 
     # Hide unused plots
     for j in range(idx + 1, len(axes)):
@@ -115,3 +115,5 @@ def plot_distributions_from_dict(dict):
 
     plt.tight_layout()
     plt.show()
+
+    return fig
