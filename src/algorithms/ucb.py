@@ -38,7 +38,7 @@ def UCB1(bandit, rounds):
     print(f"Total reward after {rounds} rounds: {rewards.sum()}")
     print(f"Number of times each arm was played: {counts}")
 
-    return rewards, counts
+    return rewards
 
 def main():
     parser = argparse.ArgumentParser(description="Run a multi-armed bandit problem with UCB.")

@@ -4,6 +4,8 @@ import json
 import csv
 import argparse
 
+import pandas as pd
+
 
 def append_counter(filename):
     counter = 1
@@ -72,6 +74,10 @@ def parse_interventions(do_list):
 
     return do_dict
 
+def save_rewards_to_csv(rewards, filename):
+    df = pd.DataFrame(rewards)
+    df.to_csv(filename, index=False)
+    print(f"Rewards saved to {filename}")
 
 def configuration_loader(config_file="global_variables.json"):
     # TODO: This assumes all scripts that have a dependency on configuration_loader are two levels deep

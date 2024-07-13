@@ -5,7 +5,7 @@ import src.utils.SCM as SCM
 import src.utils.structural_equations as structural_equations
 import src.utils.plots as plots
 import src.utils.graph_generator as graph_generator
-import src.utils.sampling as probabilistic_inference
+import src.utils.probabilistic_inference as probabilistic_inference
 
 
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
@@ -74,7 +74,7 @@ def main():
         graph_type = f"random_graph_N{args.n}_paY_{args.pa_n}_p_{args.p}"
         file_path = f"{PATH_GRAPHS}/{graph_type}"
     try:
-        graph = SCM.load_graph(file_path)
+        graph = SCM.load_graph_from_json(file_path)
         print("Successfully loaded the graph file.")
     except (FileNotFoundError, UnicodeDecodeError):
         print(f"No such file: {file_path}")
@@ -91,7 +91,7 @@ def main():
         sys.argv = ['graph_generator.py'] + generate_graph_args
         graph_generator.main()
         print(f"Successfully generated {file_path}")
-        graph = SCM.load_graph(file_path)
+        graph = SCM.load_graph_from_json(file_path)
         print(f"Successfully loaded {file_path}")
 
     # TODO: Check if args.n or args.n + 1

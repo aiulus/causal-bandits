@@ -117,3 +117,19 @@ def plot_distributions_from_dict(dict, save=False):
     plt.show()
 
     return fig
+
+
+def plot_rewards(rewards, alg_type, bandit_type, save=False):
+    title = "Rewards Over Time"
+    subtitle = f"Algorithm used: {alg_type}\n Bandit type: {bandit_type}"
+    plt.figure(figsize=(10, 6))
+    plt.plot(rewards)
+    plt.xlabel("Iterations")
+    plt.ylabel("Reward")
+    plt.title(title)
+    plt.suptitle(subtitle)
+    plt.grid(True)
+    plot_filename = subtitle.strip(':').replace(' ', '_') + ".png"
+    if save:
+        plt.savefig(plot_filename, bbox_inches='tight')
+    plt.show()

@@ -1,3 +1,4 @@
+from pathlib import Path
 import argparse
 import json
 import os
@@ -9,7 +10,8 @@ import numpy as np
 
 import noises, plots, structural_equations, graph_generator, io_mgmt
 
-sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
 
 config = io_mgmt.configuration_loader()
 PATH_GRAPHS = config['PATH_GRAPHS']

@@ -1,7 +1,49 @@
 import numpy as np
 import sys
+from pathlib import Path
 
-sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
+import SCM
+
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
+
+def create_bandit(bandit_type, **kwargs):
+    bandit_classes = {
+        'bernoulli': Bernoulli_MAB,
+        'gaussian': Gaussian_MAB,
+        'linear': Linear_MAB,
+        'causal': CausalBandit
+    }
+    if bandit_type not in bandit_classes:
+        raise ValueError(f"Unsupported bandit type: {bandit_type}")
+    return bandit_classes[bandit_type](**kwargs)
+
+# To enable single-point-of-entry error handling in the main function of bandits.py
+# Holds the required arguments for each type.
+def validate_bandit_args(args):
+    bandit_args_dict = {
+        'bernoulli': {
+            'required': ['p'],
+        },
+        'gaussian': {
+            'required': ['mu', 'sigma_sqr'],
+        },
+        'linear': {
+            'required': ['context_dim', 'theta', 'n_arms'],
+        },
+        'causal': {
+            'required': ['scm_path'],
+        }
+    }
+
+    bandit_config = bandit_args_dict[args.bandit_type]
+    missing_args = [arg for arg in bandit_config['required'] if getattr(args, arg) is None]
+
+    if missing_args:
+        raise ValueError(f"Missing required arguments for {args.bandit_type} bandit: {', '.join(missing_args)}")
+
+    return
+
 
 class Bernoulli_MAB:
     def __init__(self, n_arms, p_true):
@@ -126,7 +168,7 @@ class CausalBandit:
         :param interventions: Dictionary with {variable_index : value_to_set_variable}
         """
         self.scm.intervene(interventions)
-        self.scm.sample(1) # Updata the SCM with the intervention
+        self.scm.sample(1) # Update the SCM with the intervention
 
     def get_reward(self):
         """

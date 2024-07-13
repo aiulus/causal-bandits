@@ -1,0 +1,8 @@
+*.png
+*.csv
+*.json
+*draft*
+/outputs
+venv/
+env/
+.ipynb_checkpoints/

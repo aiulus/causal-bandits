@@ -2,8 +2,10 @@ import numpy as np
 from scipy.stats import beta, invgamma, norm
 import argparse
 import sys
+from pathlib import Path
 
-sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
 def thompson_sampling(n_arms, n_rounds, bandit):
     """
     Runs Thompson Sampling on a given Multi-Armed Bandit instance.
@@ -42,7 +44,7 @@ def thompson_sampling(n_arms, n_rounds, bandit):
     print(f"Successes: {successes}")
     print(f"Failures: {failures}")
 
-    return rewards, successes, failures
+    return rewards
 
 def thompson_sampling_gaussian(n_arms, n_rounds, bandit):
     """

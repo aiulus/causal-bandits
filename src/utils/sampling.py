@@ -2,7 +2,7 @@ import argparse
 import ast
 import json
 import csv
-import os
+from pathlib import Path
 import sys
 import re
 import matplotlib.pyplot as plt
@@ -10,7 +10,8 @@ import networkx as nx
 import numpy as np
 import noises, plots, structural_equations, graph_generator, SCM, io_mgmt
 
-sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
 
 config = io_mgmt.configuration_loader()
 PATH_GRAPHS = config['PATH_GRAPHS']
