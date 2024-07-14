@@ -58,7 +58,7 @@ class Bernoulli_MAB:
         :param n_arms: Number of arms
         :param p_true: Probability of success for each arm
         """
-        if n_arms != p_true:
+        if n_arms != len(p_true):
             raise ValueError("Number of arms must match the length of the probability vector.")
         if any(p < 0 or p > 1 for p in p_true):
             raise ValueError("All probabilities must be between 0 and 1.")
