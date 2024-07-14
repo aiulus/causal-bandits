@@ -25,4 +25,11 @@ Performance analysis of Causal Bandit algorithms
 
     > TO PLOT (AND SAVE) SAMPLING RESULTS, USE:
       python sampling.py --mode l2 --file_name 'SCM_n3_parallel_graph_linear_functions_N(2,5)_doX1-5X2-3X3-7.json' --plot --save 
+### 5. Run standard exploration-exploitation algorithms on specific bandit problems:
+    Perform Thompson Sampling on a Gaussian bandit with three arms over 100 rounds. Save and plot cumulative rewards:
+    > python  bandits_draft.py --bandit_type gaussian --mu 1 2 1 --sigma_sqr 1 1 100 --n_arms 3 --T 100 --algorithm thompson --reward_type cumulative
+    Perform UCB on a Bernoulli bandit with three arms over 100 rounds. Save and plot simple rewards:
+    > python  bandits_draft.py --bandit_type bernoulli --p 0.1 0.5 0.9 --n_arms 3 --T 100 --algorithm ucb --reward_type simple
+               
+
 
