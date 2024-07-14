@@ -194,7 +194,7 @@ def main():
     args = parser.parse_args()
 
     # save_path = f"SCM_n{args.n}_{args.graph_type}-graph_{args.funct_type}-functions_{noise_str}_noises_p{args.p}.json"
-    save_path = io_mgmt.args_to_filename(args, 'json', PATH_SCM)
+    save_path = io_mgmt.scm_args_to_filename(args, 'json', PATH_SCM)
 
     if args.plot:
         plots.draw_scm(save_path)

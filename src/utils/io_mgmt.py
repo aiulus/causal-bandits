@@ -26,7 +26,7 @@ def append_unique_id(filename):
     return filename_with_uid
 
 
-def args_to_filename(args, file_type, base_path):
+def scm_args_to_filename(args, file_type, base_path):
     # Specify name components common to all user inputs
     components = [
         f"SCM_n{args.n}",
@@ -74,10 +74,12 @@ def parse_interventions(do_list):
 
     return do_dict
 
+
 def save_rewards_to_csv(rewards, filename):
     df = pd.DataFrame(rewards)
     df.to_csv(filename, index=False)
     print(f"Rewards saved to {filename}")
+
 
 def configuration_loader(config_file="global_variables.json"):
     # TODO: This assumes all scripts that have a dependency on configuration_loader are two levels deep

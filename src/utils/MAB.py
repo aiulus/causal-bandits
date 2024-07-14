@@ -14,9 +14,16 @@ def create_bandit(bandit_type, **kwargs):
         'linear': Linear_MAB,
         'causal': CausalBandit
     }
+    bandit_args_dict = {
+        'bernoulli': ['n_arms', 'p_true'],
+        'gaussian': ['n_arms', 'means', 'variances'],
+        'linear': ['n_arms', 'context_dim', 'theta', 'epsilon'],
+        'causal': ['scm', 'reward_variable']
+    }
     if bandit_type not in bandit_classes:
         raise ValueError(f"Unsupported bandit type: {bandit_type}")
-    return bandit_classes[bandit_type](**kwargs)
+    bandit_args = {key: kwargs[key] for key in bandit_args_dict[bandit_type] if key in kwargs}
+    return bandit_classes[bandit_type](**bandit_args)
 
 # To enable single-point-of-entry error handling in the main function of bandits.py
 # Holds the required arguments for each type.
