@@ -166,6 +166,7 @@ class CausalBandit:
         :param scm: Structural Causal Model
         :param reward_variable: The variable in graph G that represents the reward (Y)
         """
+        print(f"Parsing scm: {scm}\n")
         self.scm = scm
         self.reward_variable = reward_variable
 

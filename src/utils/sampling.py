@@ -58,21 +58,6 @@ def evaluate_structural_equation(function_string, data_dict, noise_dict):
     print(f"DATA DICTIONARY: {data_dict}") # Debug statement
 
     # Prepare the arguments
-    #if len(input_vars) != 0:
-    #    args = [data_dict[var] for var in input_vars if var != '_']
-    #    result = SE_lambda(*args)  # Evaluate the function element-wise on the input variables
-    #else:
-    #    result = SE_lambda('_')
-
-    #args = []
-    #for var in input_vars:
-    #    if var == '_':
-     #       result = SE_lambda('_')
-      #      break
-       # else:
-        #    args = args.append(data_dict[var])
-         #   result = SE_lambda(*args)
-
     args = [data_dict[var] for var in input_vars if var != '_']
 
     result = SE_lambda(*args) if args else SE_lambda('_')

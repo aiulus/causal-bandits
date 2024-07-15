@@ -2,10 +2,11 @@ import json
 import numpy as np
 from scipy.stats import beta, dirichlet
 import sys
+from pathlib import Path
 import argparse
 
-# Assuming the required modules are present in the utils folder
-sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
 from src.utils import MAB, SCM
 
 
