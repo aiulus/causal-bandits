@@ -22,6 +22,7 @@ def thompson_sampling(n_arms, n_rounds, bandit):
     successes = np.zeros(n_arms)
     failures = np.zeros(n_arms)
     rewards = np.zeros(n_rounds)
+    cumulative_rewards = np.zeros(n_rounds)
 
     for round in range(n_rounds):
         """
@@ -39,12 +40,13 @@ def thompson_sampling(n_arms, n_rounds, bandit):
         else:
             failures[a_opt] += 1
         rewards[round] = reward
+        cumulative_rewards[round] = rewards[:round + 1].sum()
 
     print(f"Total reward after {n_rounds} rounds: {rewards.sum()}")
     print(f"Successes: {successes}")
     print(f"Failures: {failures}")
 
-    return rewards
+    return rewards, cumulative_rewards
 
 def thompson_sampling_gaussian(n_arms, n_rounds, bandit):
     """
@@ -67,6 +69,7 @@ def thompson_sampling_gaussian(n_arms, n_rounds, bandit):
 
     # Initialize list to keep track of the rewards obtained in each run.
     rewards = np.zeros(n_rounds)
+    cumulative_rewards = np.zeros(n_rounds)
 
     for round in range(n_rounds):
         sampled_means = np.zeros(n_arms)
@@ -85,11 +88,12 @@ def thompson_sampling_gaussian(n_arms, n_rounds, bandit):
         beta[a_opt] += 0.5 * (reward - mu[a_opt])**2 / lamb[a_opt]
 
         rewards[round] = reward
+        cumulative_rewards[round] = rewards[:round + 1].sum()
 
     print(f"Total reward after {n_rounds} rounds: {rewards.sum()}")
     print(f"Sampled means: {sampled_means}")
 
-    return rewards
+    return rewards, cumulative_rewards
 
 def thompson_sampling_linear(n_arms, n_rounds, bandit):
     """
@@ -109,6 +113,7 @@ def thompson_sampling_linear(n_arms, n_rounds, bandit):
     b = np.zeros(context_dim) # Vector for updating the posterior mean
 
     rewards = np.zeros(n_rounds)
+    cumulative_rewards = np.zeros(n_rounds)
 
     for round in range(n_rounds):
         # Sample parameter vector from the posterior distribution (θ ~ N(A^-1.b, A^-1))
@@ -127,9 +132,10 @@ def thompson_sampling_linear(n_arms, n_rounds, bandit):
         b += context * reward / beta
 
         rewards[round] = reward
+        cumulative_rewards[round] = rewards[:round + 1].sum()
 
     print(f"Total reward after {n_rounds} rounds: {rewards.sum()}")
-    return rewards
+    return rewards, cumulative_rewards
 
 
 

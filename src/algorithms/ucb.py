@@ -3,19 +3,20 @@ import sys, argparse
 sys.path.insert(0, 'C:/Users/aybuk/Git/causal-bandits/src/utils')
 from src.utils import MAB, SCM
 
-def UCB1(bandit, rounds):
+def UCB1(bandit, n_rounds):
     """
 
     :param bandit:
-    :param rounds:
+    :param n_rounds:
     :return: Total reward after all rounds, counts of pulls for each arm
     """
     n_arms = bandit.get_arms()
     counts = np.zeros(n_arms) # Number of times each arm has been played
     means = np.zeros(n_arms) # Mean reward for each arm
-    rewards = np.zeros(rounds) # Rewards obtained in each round
+    rewards = np.zeros(n_rounds) # Rewards obtained in each round
+    cumulative_rewards = np.zeros(n_rounds)
 
-    for t in range(rounds):
+    for t in range(n_rounds):
         if t < n_arms:
             # Play each arm once if time horizon allows for that
             a_t = t
@@ -34,11 +35,12 @@ def UCB1(bandit, rounds):
         means[a_t] = ((n - 1) / n) * mu_t + (1 / n) * r_t
 
         rewards[t] = r_t
+        cumulative_rewards[t] = rewards[:t + 1].sum()
 
-    print(f"Total reward after {rounds} rounds: {rewards.sum()}")
+    print(f"Total reward after {n_rounds} rounds: {rewards.sum()}")
     print(f"Number of times each arm was played: {counts}")
 
-    return rewards
+    return rewards, cumulative_rewards
 
 def main():
     parser = argparse.ArgumentParser(description="Run a multi-armed bandit problem with UCB.")
