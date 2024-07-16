@@ -77,11 +77,12 @@ def parse_interventions(interventions):
 
     return interventions_dict
 
-class lambdaSCM:
+class dynamicSCM:
     def __init__(self, scm):
-        self.vars, self.G = scm.nodes, scm.G
+        self.variables, self.G = scm.nodes, scm.G
         self.lambda_functions = parse_functions(scm.F, scm.N)
         self.lambda_noises = parse_noises(scm.N)
+
 
 # TODO: Extend to other than just fully-observed SCM's
 class SCM:

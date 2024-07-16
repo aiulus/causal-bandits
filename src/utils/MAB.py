@@ -2,10 +2,11 @@ import numpy as np
 import sys
 from pathlib import Path
 
-import SCM
+import SCM, io_mgmt
 
 path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
+
 
 def create_bandit(bandit_type, **kwargs):
     bandit_classes = {
@@ -16,7 +17,7 @@ def create_bandit(bandit_type, **kwargs):
     }
     bandit_args_dict = {
         'bernoulli': ['n_arms', 'p_true'],
-        'gaussian': ['n_arms', 'means', 'variances'],
+        'gaussian': ['n_arms', 'means', 'variances', 'budget', 'costs'],
         'linear': ['n_arms', 'context_dim', 'theta', 'epsilon'],
         'causal': ['scm', 'reward_variable']
     }
@@ -24,6 +25,7 @@ def create_bandit(bandit_type, **kwargs):
         raise ValueError(f"Unsupported bandit type: {bandit_type}")
     bandit_args = {key: kwargs[key] for key in bandit_args_dict[bandit_type] if key in kwargs}
     return bandit_classes[bandit_type](**bandit_args)
+
 
 # To enable single-point-of-entry error handling in the main function of bandits.py
 # Holds the required arguments for each type.
@@ -49,25 +51,58 @@ def validate_bandit_args(args):
     if missing_args:
         raise ValueError(f"Missing required arguments for {args.bandit_type} bandit: {', '.join(missing_args)}")
 
+    costs = io_mgmt.process_costs_per_arm(args.costs, args.n_arms)
+
+    if len(costs) != args.n_arms:
+        raise ValueError(f"The length of the costs_per_pull vector ({len(costs)}) must be eiter 1 "
+                         f"or equal the number of arms.")
+
+    args.costs = costs
     return
 
 
-class Bernoulli_MAB:
-    def __init__(self, n_arms, p_true):
+class Bandit:
+    def __init__(self, n_arms, cost_per_pull, budget):
+        self.n_arms = n_arms
+        self.budget = budget
+        self.costs = cost_per_pull if cost_per_pull else [1] * n_arms
+        self.remaining_budget = budget
+        self.count = 0 # Debug attribute
+
+    def pull_arm(self, arm_index):
+        print(f"Current remaining budget: {self.remaining_budget}") # Debug statement
+        self.count += 1
+        print(f"Iteration {self.count}") # Debug statement
+        if self.budget is not None:
+            if self.remaining_budget < min(self.costs):
+                return
+            self.remaining_budget -= self.costs[arm_index]
+        return self._pull_arm_impl(arm_index)
+
+    def _pull_arm_impl(self, arm_index):
+        raise NotImplementedError("Arm-pulling method has not been implemented by the calling subclass.")
+
+    def get_arms(self):
+        return self.n_arms
+
+    def get_remaining_budget(self):
+        return self.remaining_budget
+
+
+class Bernoulli_MAB(Bandit):
+    def __init__(self, n_arms, p_true, budget=None, cost_per_pull=1):
         """
         :param n_arms: Number of arms
         :param p_true: Probability of success for each arm
         """
+        super().__init__(n_arms, budget, cost_per_pull)
         if n_arms != len(p_true):
             raise ValueError("Number of arms must match the length of the probability vector.")
         if any(p < 0 or p > 1 for p in p_true):
             raise ValueError("All probabilities must be between 0 and 1.")
-
-        self.n_arms = n_arms
         self.p_true = p_true
 
-    # Simulates pulling an arm
-    def pull_arm(self, arm_index):
+    def _pull_arm_impl(self, arm_index):
         """
         :param arm_index: Index of the arm to pull
         :return: Reward (1 if successful, 0 otherwise)
@@ -75,15 +110,14 @@ class Bernoulli_MAB:
         if arm_index < 0 or arm_index >= self.n_arms:
             raise IndexError("Arm index out of bounds.")
         # Simulates a Bernoulli Trial with a probability of success as specified in p_true during initialization
-        return np.random.rand() < self.p_true[arm_index]
+        return 1 if np.random.rand() < self.p_true[arm_index] else 0
 
-    def get_arms(self):
-        return self.n_arms
     def get_p(self):
         return self.p_true
 
-class Gaussian_MAB:
-    def __init__(self, n_arms, means, variances):
+
+class Gaussian_MAB(Bandit):
+    def __init__(self, n_arms, means, variances, budget, costs):
         """
         Defines a Multi-Armed Bandit instance where each arm provides rewards drawn from a normal distribution with
         a true mean and a true variance unknown to the agent.
@@ -92,34 +126,35 @@ class Gaussian_MAB:
         :param means: List of true means of the normal distributions for each arm.
         :param variances: List of true variances of the normal distributions for each arm.
         """
+        super().__init__(n_arms, costs, budget)
         if n_arms != len(means) or n_arms != len(variances):
             raise ValueError("Number of arms must match the length of the true means and true variances.")
         if any(var < 0 for var in variances):
             raise ValueError("All variances must be non-negative.")
 
-        self.n_arms = n_arms
         self.means = means
         self.variances = variances
 
-    def pull_arm(self, arm_index):
+    def _pull_arm_impl(self, arm_index):
         """
         Simulates pulling an arm and returns the reward.
 
         :param arm_index: Index of the arm to pull
         :return: Reward drawn from the normal distribution of the specified arm.
         """
-
         if arm_index < 0 or arm_index >= self.n_arms:
             raise IndexError("Arm index out of bounds.")
-
-        # Simulates pulling an arm
         return np.random.normal(self.means[arm_index], np.sqrt(self.variances[arm_index]))
 
-    def get_arms(self):
-        return self.n_arms
+    def get_means(self):
+        return self.means
+
+    def get_variances(self):
+        return self.variances
+
 
 class Linear_MAB:
-    def __init__(self, n_arms, context_dim, theta, epsilon=0.1):
+    def __init__(self, n_arms, context_dim, theta, epsilon=0.1, budget=None, cost_per_pull=1):
         """
         Defines a Linear Bandit instance where each arm is associated with a d-dimensional real-valued
         feature vector. The reward r_A for pulling arm A is given by: r_A = x_A^T.θ + Ɛ,
@@ -130,14 +165,14 @@ class Linear_MAB:
         :param theta: True parameter vector for the linear model
         :param epsilon: Standard deviation of the Gaussian noise added to the rewards
         """
-        self.n_arms = n_arms
+        super().__init__(n_arms, budget, cost_per_pull)
         self.context_dim = context_dim
         self.theta = theta
         self.epsilon = epsilon
         # Initialize context/feature vectors with random values drawn from a standard normal distribution
         self.contexts = np.random.randn(n_arms, context_dim)
 
-    def pull_arm(self, arm_index):
+    def _pull_arm_impl(self, arm_index):
         """
         Simulates pulling an arm and returns a reward.
 
@@ -152,31 +187,32 @@ class Linear_MAB:
         # Return r_A = x_A^T.θ + Ɛ
         return np.dot(self.contexts[arm_index], self.theta) + noise
 
-    def get_arms(self):
-        return self.n_arms
     def get_context(self, arm_index):
         if arm_index < 0 or arm_index >= self.n_arms:
             raise IndexError("Arm index out of bounds.")
         return self.contexts[arm_index]
 
-class CausalBandit:
-    def __init__(self, scm, reward_variable):
+
+class CausalBandit(Bandit):
+    def __init__(self, scm, n_arms, reward_variable, budget=None, cost_per_pull=1):
         """
 
         :param scm: Structural Causal Model
         :param reward_variable: The variable in graph G that represents the reward (Y)
         """
         print(f"Parsing scm: {scm}\n")
+        super().__init__(n_arms, budget, cost_per_pull)
         self.scm = scm
+        self.n_arms = n_arms
         self.reward_variable = reward_variable
 
-    def intervene(self, interventions):
+    def _pull_arm_impl(self, interventions):
         """
         Perform an atomic intervention by setting the specified variables to the given values.
         :param interventions: Dictionary with {variable_index : value_to_set_variable}
         """
         self.scm.intervene(interventions)
-        self.scm.sample(1) # Update the SCM with the intervention
+        self.scm.sample(1)  # Update the SCM with the intervention
 
     def get_reward(self):
         """

@@ -87,3 +87,11 @@ def configuration_loader(config_file="global_variables.json"):
     with open(config_path, 'r') as f:
         config = json.load(f)
     return config
+
+
+def process_costs_per_arm(costs, n_arms):
+    if isinstance(costs, float):
+        costs = [costs]
+    if len(costs) == 1:
+        costs *= n_arms
+    return costs

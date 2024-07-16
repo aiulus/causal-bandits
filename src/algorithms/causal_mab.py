@@ -115,6 +115,10 @@ class OnlineCausalThompsonSampling:
         return self.rewards, self.cumulative_rewards
 
 
+class POMIS:
+    def __init__(self):
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run a causal bandit problem with Thompson Sampling.")
     parser.add_argument('--reward', type=str, required=True, help="Reward variable in SCM.")
