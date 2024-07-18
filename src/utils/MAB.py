@@ -19,8 +19,9 @@ def create_bandit(bandit_type, **kwargs):
         'bernoulli': ['n_arms', 'p_true'],
         'gaussian': ['n_arms', 'means', 'variances', 'budget', 'costs'],
         'linear': ['n_arms', 'context_dim', 'theta', 'epsilon'],
-        'causal': ['scm', 'reward_variable']
+        'causal': ['scm', 'n_arms', 'budget', 'cost_per_arm']
     }
+
     if bandit_type not in bandit_classes:
         raise ValueError(f"Unsupported bandit type: {bandit_type}")
     bandit_args = {key: kwargs[key] for key in bandit_args_dict[bandit_type] if key in kwargs}
@@ -65,14 +66,14 @@ class Bandit:
     def __init__(self, n_arms, cost_per_pull, budget):
         self.n_arms = n_arms
         self.budget = budget
-        self.costs = cost_per_pull if cost_per_pull else [1] * n_arms
+        self.costs = cost_per_pull if cost_per_pull else [0] * n_arms
         self.remaining_budget = budget
-        self.count = 0 # Debug attribute
+        self.count = 0  # Debug attribute
 
     def pull_arm(self, arm_index):
-        print(f"Current remaining budget: {self.remaining_budget}") # Debug statement
+        print(f"Current remaining budget: {self.remaining_budget}")  # Debug statement
         self.count += 1
-        print(f"Iteration {self.count}") # Debug statement
+        print(f"Iteration {self.count}")  # Debug statement
         if self.budget is not None:
             if self.remaining_budget < min(self.costs):
                 return
@@ -87,6 +88,60 @@ class Bandit:
 
     def get_remaining_budget(self):
         return self.remaining_budget
+
+
+class CausalBandit(Bandit):
+    def __init__(self, scm, n_arms, budget, cost_per_arm):
+        """
+
+        :param scm: Structural Causal Model
+        :param reward_variable: The variable in graph G that represents the reward (Y)
+        """
+        print(f"Parsing scm: {scm}\n")
+        super().__init__(n_arms, cost_per_arm, budget)
+        print(f"Actually created bandit instance with: budget={budget}, costs={self.costs}")
+        self.scm = scm
+        self.n_arms = n_arms
+        self.reward_variable = 'Y'
+
+
+    def _pull_arm_impl(self, interventions):
+        """
+        Perform an atomic intervention by setting the specified variables to the given values.
+        :param interventions: Dictionary with {variable_index : value_to_set_variable}
+        """
+        if interventions:
+            self.scm.intervene(interventions)
+            self.scm.sample(1, mode='interventional',
+                            interventions=interventions)  # Update the SCM with the intervention
+        else:
+            self.scm.sample(1, mode='observational')
+
+    def get_reward(self):
+        """
+        Get the reward value based on the current observed values.
+        :return: Reward value
+        """
+        observed_values = self.scm.sample(1)
+        return observed_values[self.reward_variable][0]
+
+    def get_observed_values(self):
+        """
+        Get the current observed values of all variables
+        :return: Dictionary containing current observed values of all variables
+        """
+        return self.scm.sample(1)
+
+    def expected_reward(self, interventions, sample_size=1000):
+        """
+        Calculate the expected reward for a given set of interventions
+        :param interventions: Dictionary with keys as variables and values as the values to set
+        :return: Expected reward value
+        """
+        if interventions:
+            self.scm.intervene(interventions)
+        rewards = [self.get_reward() for _ in range(sample_size)]
+        return np.mean(rewards)
 
 
 class Bernoulli_MAB(Bandit):
@@ -191,50 +246,3 @@ class Linear_MAB:
         if arm_index < 0 or arm_index >= self.n_arms:
             raise IndexError("Arm index out of bounds.")
         return self.contexts[arm_index]
-
-
-class CausalBandit(Bandit):
-    def __init__(self, scm, n_arms, reward_variable, budget=None, cost_per_pull=1):
-        """
-
-        :param scm: Structural Causal Model
-        :param reward_variable: The variable in graph G that represents the reward (Y)
-        """
-        print(f"Parsing scm: {scm}\n")
-        super().__init__(n_arms, budget, cost_per_pull)
-        self.scm = scm
-        self.n_arms = n_arms
-        self.reward_variable = reward_variable
-
-    def _pull_arm_impl(self, interventions):
-        """
-        Perform an atomic intervention by setting the specified variables to the given values.
-        :param interventions: Dictionary with {variable_index : value_to_set_variable}
-        """
-        self.scm.intervene(interventions)
-        self.scm.sample(1)  # Update the SCM with the intervention
-
-    def get_reward(self):
-        """
-        Get the reward value based on the current observe values.
-        :return: Reward value
-        """
-        observed_values = self.scm.sample(1)
-        return observed_values[self.reward_variable][0]
-
-    def get_observed_values(self):
-        """
-        Get the current observed values of all variables
-        :return: Dictionary containing current observed values of all variables
-        """
-        return self.scm.sample(1)
-
-    def expected_reward(self, interventions, sample_size=1000):
-        """
-        Calculate the expected reward for a given set of interventions
-        :param interventions: Dictionary with keys as variables and values as the values to set
-        :return: Expected reward value
-        """
-        self.intervene(interventions)
-        rewards = [self.get_reward() for _ in range(sample_size)]
-        return np.mean(rewards)

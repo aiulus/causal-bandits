@@ -1,8 +1,10 @@
-import json
+import abc
+from abc import abstractmethod
 import numpy as np
 from scipy.stats import beta, dirichlet
 import sys
 from pathlib import Path
+import json
 import argparse
 
 path_root = Path(__file__).parents[2]
@@ -10,113 +12,205 @@ sys.path.append(str(path_root))
 from src.utils import MAB, SCM
 
 
-class CausalThompsonSampling:
-    def __init__(self, bandit, T, p_obs):
+class CausalBanditAlgorithm:
+    """
+    Initializes the algorithm with the relevant properties of the CausalBandit (MAB.py) object that's passed
+    to __init__().
+    """
+
+    def __init__(self, bandit, n_iterations, budget, costs_per_arm, interv_values):
+        if interv_values is None:
+            interv_values = [0]  # Currently not in use
         self.bandit = bandit
-        self.T = T
-        self.p_obs = p_obs
+        print(f"Bandit object assigned. Properties: n_arms={self.bandit.n_arms}, n_iterations={n_iterations}")
+        print(f"BUDGET: {self.bandit.budget}")
+        self.scm = self.bandit.scm
+        print(f"SCM object created. Nodes: {self.scm.G.nodes}\n Edges: {self.scm.G.edges}\n ")  # Debug statement
+        self.G = self.scm.G
+        self.n_arms = self.bandit.n_arms
+        print(f"Setting n_arms={self.n_arms}")  # Debug statement
+        self.budget = budget if budget else 0.01
+        print(f"Setting budget={self.budget}")  # Debug statement
+        self.remaining_budget = budget
+        self.costs_per_arm = costs_per_arm
+        print(f"Setting costs per arm as {self.costs_per_arm}")  # Debug statement
+        self.n_iterations = n_iterations
+        print(f"Setting T={self.n_iterations}")  # Debug statement
+        self.intervention_values = interv_values * self.n_arms if len(interv_values) == 1 else interv_values
 
-        # Initialize arrays for successes and failures
-        self.s = np.array([1, 1])
-        self.f = np.array([1, 1])
+    def actions_left(self):
+        # If the budget option is not set, it defaults to 0.01
+        return self.budget == 0.01 or self.remaining_budget >= min(self.costs_per_arm)
 
-        # Initialize probabilities
-        self.p_X = np.sum(self.p_obs, axis=0) / np.sum(self.p_obs)
-        self.p_Y_X = np.array([self.p_obs[0, 1] / np.sum(self.p_obs[0]), self.p_obs[1, 1] / np.sum(self.p_obs[1])])
+    # TODO: Currenty strategy for modeling pulling an arm is an atomic intervention with value 0, do(X_i = 0),
+    #  regardless of the arm's distribution
+    def pull_arm(self, arm_index, value=None):
+        if value is not None:
+            interventions = {arm_index: value}
+        else:
+            interventions = None
 
-        self.z_count = [0, 0]
-        self.rewards = np.zeros(T)
-        self.cumulative_rewards = np.zeros(T)
+        self.bandit.pull_arm(interventions)
+        reward = self.bandit.get_reward()
+
+        if self.budget is not None:
+            self.remaining_budget -= self.costs_per_arm[arm_index]
+
+        return reward
+
+    @abstractmethod
+    def select_arm(self):
+        """
+        Corresponds to the specific strategy - must be implemented by the subclass.
+        """
+        pass
 
     def run(self):
-        # Seed P(y | do(X), z) with observations
-        self.s[0] = self.p_obs[0, 1]
-        self.s[1] = self.p_obs[1, 1]
-        self.f[0] = self.p_obs[0, 0]
-        self.f[1] = self.p_obs[1, 0]
+        print(f"Iterations: {self.n_iterations}\n Object type: {type(self.n_iterations)}")
+        cumulative_rewards = np.zeros(self.n_iterations)
+        rewards = np.zeros(self.n_iterations)
 
-        for t in range(self.T):
-            z = np.random.randint(0, 2)
-            z_prime = 1 - z
-            self.z_count[z] += 1
+        for t in range(self.n_iterations):
+            if not self.actions_left():
+                break
 
-            p_Z = self.z_count / np.sum(self.z_count)
-            p_YdoX_Z = np.array([
-                [self.s[0] / (self.s[0] + self.f[0]), self.s[1] / (self.s[1] + self.f[1])],
-                [self.s[1] / (self.s[1] + self.f[1]), self.s[0] / (self.s[0] + self.f[0])]
-            ])
+            # TODO: Use self.intervention_values to randomly pick the value to set the arm to from a list of predefined values
+            # Select an arm (and value) to pull
+            a_t = self.select_arm()
+            r_t = self.pull_arm(a_t, self.intervention_values[a_t])
 
-            q1 = p_YdoX_Z[z, z_prime]
-            q2 = self.p_Y_X[z]
+            rewards[t] = r_t
+            cumulative_rewards[t] = rewards[:t + 1].sum()
 
-            bias = abs(q1 - q2)
-            weight = 1 if np.isnan(bias) else 1 - bias
-            w = np.ones(2)
-            w[z] = weight
-
-            theta_hat = [beta.rvs(self.s[0], self.f[0]) * w[0], beta.rvs(self.s[1], self.f[1]) * w[1]]
-            a_opt = np.argmax(theta_hat)
-            reward = np.random.rand() <= theta_hat[a_opt]
-
-            self.s[a_opt] += reward
-            self.f[a_opt] += 1 - reward
-
-            self.rewards[t] = reward
-            self.cumulative_rewards[t] = self.rewards[:t + 1].sum()
-
-        return self.rewards, self.cumulative_rewards
+        return rewards, cumulative_rewards
 
 
-class OnlineCausalThompsonSampling:
-    def __init__(self, bandit, T):
-        self.bandit = bandit
-        self.T = T
+class RandomCausalBandit(CausalBanditAlgorithm):
+    def __init__(self, bandit, n_iterations, budget, costs_per_arm, interv_values):
+        super().__init__(bandit, n_iterations, budget, costs_per_arm, interv_values)
 
-        self.pa_Y = [node for node in bandit.scm.G.predecessors('Y')]
-        self.N = len(list(self.pa_Y))
-
-        self.beta_params = np.ones((2 ** self.N, 2))  # Beta(1,1)
-        self.dirichlet_params = np.ones((2, 2 ** self.N))  # Dirichlet(1)
-
-        self.S = np.zeros(2 ** self.N)
-        self.F = np.zeros(2 ** self.N)
-
-        self.rewards = np.zeros(T)
-        self.cumulative_rewards = np.zeros(T)
-
-    def state_to_index(self, state):
-        return sum([state[i] * (2 ** i) for i in range(len(state))])
-
-    def run(self):
-        for t in range(self.T):
-            mu_a = np.zeros(2)  # For storing the expected reward for each action
-            for a in range(2):
-                pa_Y_Z = dirichlet.rvs(self.dirichlet_params[a])[0]
-                p_Y_given_pa_Y_Z = [beta.rvs(self.beta_params[k, 0], self.beta_params[k, 1]) for k in range(2 ** self.N)]
-                mu_a[a] = np.sum([p_Y_given_pa_Y_Z[k] * pa_Y_Z[k] for k in range(2 ** self.N)])
-
-            a_t = np.argmax(mu_a)
-            X_c = self.bandit.get_observed_values()
-            Z_k = set(X_c) | {a_t}
-            Y_t = np.random.binomial(1, mu_a[a_t])
-
-            self.dirichlet_params[a_t, list(Z_k)] += 1
-            if Y_t == 1:
-                self.S[list(Z_k)] += 1
-            else:
-                self.F[list(Z_k)] += 1
-
-            for k in list(Z_k):
-                self.beta_params[k] = [self.S[k] + 1, self.F[k] + 1]
-
-            self.rewards[t] = Y_t
-            self.cumulative_rewards[t] = self.rewards[:t + 1].sum()
-
-        return self.rewards, self.cumulative_rewards
+    def select_arm(self):
+        arm_index = np.random.choice(self.n_arms)
+        value = np.random.choice(self.intervention_values[arm_index] + [None])
+        return arm_index, value
 
 
-class POMIS:
-    def __init__(self):
+class EpsilonGreedyCausalMAB(CausalBanditAlgorithm):
+    def __init__(self, bandit, n_iterations, budget, costs_per_arm, interv_values, epsilon=0.1):
+        super().__init__(bandit, costs_per_arm, n_iterations, budget, interv_values)
+        self.epsilon = epsilon
+        self.arm_values = np.zeros(self.n_arms)
+        self.arm_counts = np.zeros(self.n_arms)
+
+    def select_arm(self):
+        if np.random.rand() < self.epsilon:
+            arm_index = np.random.choice(self.n_arms)  # Exploration
+        else:
+            arm_index = np.argmax(self.arm_values)  # Exploitation
+
+        value = np.random.choice(self.intervention_values[arm_index] + [None])
+        return arm_index, value
+
+    def pull_arm(self, arm_index, value=None):
+        reward = super().pull_arm(arm_index, value)
+        self.arm_counts[arm_index] += 1
+        n = self.arm_counts[arm_index]
+        value_estimate = self.arm_values[arm_index]
+        self.arm_values[arm_index] = ((n - 1) / n) * value_estimate + (1 / n) * reward
+        return reward
+
+
+class CausalThompsonSampling(CausalBanditAlgorithm):
+    def __init__(self, bandit, n_iterations, budget, costs_per_arm, interv_values):
+        super().__init__(bandit, costs_per_arm, n_iterations, budget, interv_values)
+        self.successes = np.zeros(self.n_arms)
+        self.failures = np.zeros(self.n_arms)
+
+    def select_arm(self):
+        sampled_values = [beta.rvs(a=1 + self.successes[i], b=1 + self.failures[i]) for i in range(self.n_arms)]
+        arm_index = np.argmax(sampled_values)
+        value = np.random.choice(self.intervention_values[arm_index] + [None])
+        return arm_index, value
+
+    def pull_arm(self, arm_index, value=None):
+        reward = super().pull_arm(arm_index, value)
+        if reward == 1:
+            self.successes[arm_index] += 1
+        else:
+            self.failures[arm_index] += 1
+        return reward
+
+
+class CausalUCB(CausalBanditAlgorithm):
+    def __init__(self, bandit, n_iterations, budget, costs_per_arm, interv_values):
+        super().__init__(bandit, costs_per_arm, n_iterations, budget, interv_values)
+        self.counts = np.zeros(self.n_arms)
+        self.values = np.zeros(self.n_arms)
+
+    def select_arm(self):
+        total_counts = np.sum(self.counts)
+        ucb_values = self.values + np.sqrt((2 * np.log(total_counts + 1)) / (self.counts + 1))
+        arm_index = np.argmax(ucb_values)
+        value = np.random.choice(self.intervention_values[arm_index] + [None])
+        return arm_index, value
+
+    def pull_arm(self, arm_index, value=None):
+        reward = super().pull_arm(arm_index, value)
+        self.counts[arm_index] += 1
+        n = self.counts[arm_index]
+        value_estimate = self.values[arm_index]
+        self.values[arm_index] = (n - 1 / n) * value_estimate + (1 / n) * reward
+        return reward
+
+
+class CausalRejectionSampling(CausalBanditAlgorithm):
+    def __init__(self, bandit, n_iterations, budget, costs_per_arm, interv_values):
+        super().__init__(bandit, costs_per_arm, n_iterations, budget, interv_values)
+        self.rewards = np.zeros((self.n_arms, n_iterations // self.n_arms))
+        self.arm_indices = np.arange(self.n_arms)
+
+    def select_arm(self):
+        if len(self.arm_indices) == 1:
+            arm_index = self.arm_indices[0]
+        else:
+            round_rewards = self.rewards[:, :self.n_iterations // self.n_arms]
+            mean_rewards = np.mean(round_rewards, axis=1)
+            arm_index = np.argmax(mean_rewards)
+        value = np.random.choice(self.intervention_values[arm_index] + [None])
+        return arm_index, value
+
+    def pull_arm(self, arm_index, value=None):
+        reward = super().pull_arm(arm_index, value)
+        self.rewards[arm_index, len(self.rewards[arm_index][self.rewards[arm_index > 0]])] = reward
+        if len(self.rewards[arm_index][self.rewards[arm_index] > 0]) == (self.n_iterations // self.n_arms):
+            self.arm_indices = np.delete(self.arm_indices, np.where(self.arm_indices == arm_index))
+        return reward
+
+
+class OnlineCausalThompsonSampling(CausalBanditAlgorithm):
+    def __init__(self, bandit, n_iterations, budget, costs_per_arm, interv_values):
+        super().__init__(bandit, costs_per_arm, n_iterations, budget, interv_values)
+        self.successes = np.zeros(self.n_arms)
+        self.failures = np.zeros(self.n_arms)
+
+    # TODO: Currently same as 'CausalThompsonSampling'
+    def select_arm(self):
+        sampled_values = [beta.rvs(a=1 + self.successes[i], b=1 + self.failures[i]) for i in range(self.n_arms)]
+        arm_index = np.argmax(sampled_values)
+        value = np.random.choice(self.intervention_values[arm_index] + [None])
+        return arm_index, value
+
+
+class BudgetedCumulativeRegret:
+    def __init__(self, bandit, budget, costs_per_arm):
+        self.G = bandit.scm.G
+        self.n_arms = bandit.n_arms
+        self.budget = budget
+        self.costs_per_arm = costs_per_arm
+
+    def _initial_procedure(self):
+        # TODO
+        return None
 
 
 def main():
@@ -124,7 +218,8 @@ def main():
     parser.add_argument('--reward', type=str, required=True, help="Reward variable in SCM.")
     parser.add_argument('--rounds', type=int, default=1000, help="Time horizon.")
     parser.add_argument('--algorithm', type=str, choices=['C-TS', 'OC-TS'])
-    parser.add_argument('--obs', nargs='+', type=float, required=True, help='Observed probability distribution for the arms.')
+    parser.add_argument('--obs', nargs='+', type=float, required=True,
+                        help='Observed probability distribution for the arms.')
     parser.add_argument('--pa_Y', nargs='+', help="Set containing the parents nodes of the reward variable.")
     parser.add_argument('--json', type=str, help="Path to the JSON file describing the SCM.")
 
@@ -152,7 +247,8 @@ def main():
         rewards, cumulative_rewards = cts.run()
     elif args.algorithm == 'OC-TS':
         if not args.pa_Y:
-            raise ValueError("Parent nodes of the reward variable must be provided for Online Causal Thompson Sampling.")
+            raise ValueError(
+                "Parent nodes of the reward variable must be provided for Online Causal Thompson Sampling.")
         octs = OnlineCausalThompsonSampling(bandit, T)
         rewards, cumulative_rewards = octs.run()
     else:

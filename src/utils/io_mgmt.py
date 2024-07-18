@@ -81,6 +81,17 @@ def save_rewards_to_csv(rewards, filename):
     print(f"Rewards saved to {filename}")
 
 
+def csv_to_dict(path):
+    data = {}
+    with open(path, mode='r') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            node = row[0]
+            values = list(map(float, row[1].split(',')))
+            data[node] = values
+    return data
+
+
 def configuration_loader(config_file="global_variables.json"):
     # TODO: This assumes all scripts that have a dependency on configuration_loader are two levels deep
     config_path = f"../../config/{config_file}"

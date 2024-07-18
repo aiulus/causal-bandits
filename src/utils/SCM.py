@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
-import noises, plots, structural_equations, graph_generator, io_mgmt
+import noises, plots, structural_equations, graph_generator, io_mgmt, sampling
 
 path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
@@ -134,6 +134,19 @@ class SCM:
             L3[X_j] = f_j(*parents_data) + noise_data
 
         return L3
+
+    def sample(self, n_samples, mode='observational', interventions=None):
+        if mode == 'observational':
+            data_savepath = io_mgmt.append_counter('observational_data.csv')
+            sampling.sample_observational_distribution(self, n_samples, data_savepath)
+        elif mode == 'interventional':
+            if interventions is None:
+                raise ValueError("A set of interventions must be provided for L2-sampling.")
+            data_savepath = io_mgmt.append_counter('interventional_data.csv')
+            sampling.sample_interventional_distribution(self, n_samples, data_savepath, interventions)
+
+        data = io_mgmt.csv_to_dict(data_savepath)
+        return data
 
     def visualize(self):
         pos = nx.spring_layout(self.G)
