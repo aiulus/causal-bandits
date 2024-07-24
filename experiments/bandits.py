@@ -6,7 +6,7 @@ import numpy as np
 import SCM, MAB, plots, io_mgmt
 import src.algorithms.thompson as thompson
 import src.algorithms.ucb as UCB
-import src.algorithms.causal_thompson as causal_thompson
+import src.algorithms.causal_mab as causal_thompson
 
 config = io_mgmt.configuration_loader()
 PATH_REWARDS = config['PATH_REWARDS']

@@ -95,10 +95,11 @@ class SCM:
 
         Interventions can be perfect (constant value) or soft (stochastic function).
         """
-        for variable, func in interventions.items():
-            lambda_string = f"lambda _: {func}"
-            self.interventions[variable] = func
-            self.F[variable] = lambda_string
+        if isinstance(interventions, dict): # FOR DEBUGGING ONLY
+            for variable, func in interventions.items():
+                lambda_string = f"lambda _: {func}"
+                self.interventions[variable] = func
+                self.F[variable] = lambda_string
 
     def abduction(self, L1):
         """Infer the values of the exogenous variables given observational outputs"""

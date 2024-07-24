@@ -190,8 +190,8 @@ def main():
     data_savepath = f"{PATH_DATA}/{args.file_name}".replace('.json', '.csv')
 
     if args.plot:
-        dict = csv_to_dict(data_savepath)
-        fig = plots.plot_distributions_from_dict(dict)
+        dictionary = csv_to_dict(data_savepath)
+        fig = plots.plot_distributions_from_dict(dictionary)
         if args.save:
             plot_filename = f"{PATH_PLOTS}/{args.file_name}".replace('.json', '.png')
             fig.savefig(plot_filename)

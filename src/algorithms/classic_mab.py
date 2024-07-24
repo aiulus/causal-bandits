@@ -9,15 +9,15 @@ sys.path.append(str(path_root))
 
 
 class BanditAlgorithm(ABC):
-    def __init__(self, n_arms, n_iterations, bandit, budget):
+    def __init__(self, n_arms, T, bandit, budget):
         self.n_arms = n_arms
-        self.n_iterations = n_iterations
+        self.T = T
         self.bandit = bandit
         self.budget = budget
         self.costs = bandit.costs if bandit.costs and bandit.budget else [0] * n_arms
         self.remaining_budget = budget
-        self.rewards = np.zeros(self.n_iterations)
-        self.cumulative_rewards = np.zeros(self.n_iterations)
+        self.rewards = np.zeros(self.T)
+        self.cumulative_rewards = np.zeros(self.T)
         self.counts = np.zeros(n_arms)
 
     def actions_left(self):
@@ -38,21 +38,21 @@ class BanditAlgorithm(ABC):
             print("Insufficient budget to run the simulation.")
             return self.rewards, self.cumulative_rewards
 
-        for t in range(self.n_rounds):
+        for t in range(self.T):
             if not self.actions_left():
                 break
             reward, _ = self.simulate_single_pull()
             self.rewards[t] = reward
             self.cumulative_rewards[t] = self.rewards[:t + 1].sum()
 
-        print(f"Total reward after (<=) {self.n_rounds} rounds: {self.rewards.sum()}")
+        print(f"Total reward after (<=) {self.T} rounds: {self.rewards.sum()}")
         print(f"Number of times each arm was played: {self.counts}")
         return self.rewards, self.cumulative_rewards
 
 
 class ThompsonSamplingBernoulli(BanditAlgorithm):
-    def __init__(self, n_arms, n_iterations, bandit, budget):
-        super().__init__(n_arms, n_iterations, bandit, budget)
+    def __init__(self, n_arms, T, bandit, budget):
+        super().__init__(n_arms, T, bandit, budget)
         self.successes = np.zeros(self.n_arms)
         self.failures = np.zeros(self.n_arms)
 
@@ -71,8 +71,8 @@ class ThompsonSamplingBernoulli(BanditAlgorithm):
 
 
 class ThompsonSamplingGaussian(BanditAlgorithm):
-    def __init__(self, n_arms, n_iterations, bandit, budget):
-        super().__init__(n_arms, n_iterations, bandit, budget)
+    def __init__(self, n_arms, T, bandit, budget):
+        super().__init__(n_arms, T, bandit, budget)
         self.alpha = np.ones(self.n_arms)
         self.beta = np.ones(self.n_arms)
         self.mu = np.zeros(self.n_arms)
@@ -100,8 +100,8 @@ class ThompsonSamplingGaussian(BanditAlgorithm):
 
 
 class ThompsonSamplingLinear(BanditAlgorithm, ABC):
-    def __init__(self, n_arms, n_iterations, bandit, budget=None):
-        super().__init__(n_arms, n_iterations, bandit, budget)
+    def __init__(self, n_arms, T, bandit, budget=None):
+        super().__init__(n_arms, T, bandit, budget)
 
     def run(self):
         context_dim = self.bandit.context_dim
@@ -110,10 +110,10 @@ class ThompsonSamplingLinear(BanditAlgorithm, ABC):
         A = np.eye(context_dim) / alpha
         b = np.zeros(context_dim)
 
-        rewards = np.zeros(self.n_rounds)
-        cumulative_rewards = np.zeros(self.n_rounds)
+        rewards = np.zeros(self.T)
+        cumulative_rewards = np.zeros(self.T)
 
-        for round in range(self.n_rounds):
+        for round in range(self.T):
             theta_sample = np.random.multivariate_normal(np.linalg.solve(A, b), np.linalg.inv(A))
             sampled_rewards = np.zeros(self.n_arms)
 
@@ -134,8 +134,8 @@ class ThompsonSamplingLinear(BanditAlgorithm, ABC):
 
 
 class UCB1(BanditAlgorithm):
-    def __init__(self, n_arms, n_iterations, bandit, budget):
-        super().__init__(n_arms, n_iterations, bandit, budget)
+    def __init__(self, n_arms, T, bandit, budget):
+        super().__init__(n_arms, T, bandit, budget)
         self.means = np.zeros(n_arms)
         self.counter = 0
 

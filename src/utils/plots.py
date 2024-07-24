@@ -120,6 +120,7 @@ def plot_distributions_from_dict(dict, save=False):
 
 
 def plot_rewards(rewards, alg_type, bandit_type, plot_filename, save=False):
+    plot_filename = plot_filename + ".png"
     title = "Rewards Over Time"
     subtitle = f"Algorithm used: {alg_type}\n Bandit type: {bandit_type}"
     plt.figure(figsize=(10, 6))

@@ -19,7 +19,7 @@ def create_bandit(bandit_type, **kwargs):
         'bernoulli': ['n_arms', 'p_true'],
         'gaussian': ['n_arms', 'means', 'variances', 'budget', 'costs'],
         'linear': ['n_arms', 'context_dim', 'theta', 'epsilon'],
-        'causal': ['scm', 'n_arms', 'budget', 'cost_per_arm']
+        'causal': ['n_arms', 'costs', 'budget',  'T', 'do_values', 'scm']
     }
 
     if bandit_type not in bandit_classes:
@@ -55,7 +55,7 @@ def validate_bandit_args(args):
     costs = io_mgmt.process_costs_per_arm(args.costs, args.n_arms)
 
     if len(costs) != args.n_arms:
-        raise ValueError(f"The length of the costs_per_pull vector ({len(costs)}) must be eiter 1 "
+        raise ValueError(f"The length of the costs vector ({len(costs)}) must be either 1 "
                          f"or equal the number of arms.")
 
     args.costs = costs
@@ -63,10 +63,10 @@ def validate_bandit_args(args):
 
 
 class Bandit:
-    def __init__(self, n_arms, cost_per_pull, budget):
+    def __init__(self, n_arms, costs, budget):
         self.n_arms = n_arms
         self.budget = budget
-        self.costs = cost_per_pull if cost_per_pull else [0] * n_arms
+        self.costs = costs if costs else [0] * n_arms
         self.remaining_budget = budget
         self.count = 0  # Debug attribute
 
@@ -91,18 +91,19 @@ class Bandit:
 
 
 class CausalBandit(Bandit):
-    def __init__(self, scm, n_arms, budget, cost_per_arm):
+    def __init__(self, n_arms, costs, budget, T, do_values, scm):
         """
 
         :param scm: Structural Causal Model
         :param reward_variable: The variable in graph G that represents the reward (Y)
         """
-        print(f"Parsing scm: {scm}\n")
-        super().__init__(n_arms, cost_per_arm, budget)
+        print(f"Parsing scm with followning properties: {scm.G.nodes}\n {scm.G.edges}\n {scm.N}") # Debug statement
+        super().__init__(n_arms, costs, budget)
         print(f"Actually created bandit instance with: budget={budget}, costs={self.costs}")
         self.scm = scm
-        self.n_arms = n_arms
         self.reward_variable = 'Y'
+        self.T = T
+        self.do_values = do_values
 
 
     def _pull_arm_impl(self, interventions):
@@ -145,12 +146,12 @@ class CausalBandit(Bandit):
 
 
 class Bernoulli_MAB(Bandit):
-    def __init__(self, n_arms, p_true, budget=None, cost_per_pull=1):
+    def __init__(self, n_arms, p_true, budget=None, costs=1):
         """
         :param n_arms: Number of arms
         :param p_true: Probability of success for each arm
         """
-        super().__init__(n_arms, budget, cost_per_pull)
+        super().__init__(n_arms, budget, costs)
         if n_arms != len(p_true):
             raise ValueError("Number of arms must match the length of the probability vector.")
         if any(p < 0 or p > 1 for p in p_true):
@@ -209,7 +210,7 @@ class Gaussian_MAB(Bandit):
 
 
 class Linear_MAB:
-    def __init__(self, n_arms, context_dim, theta, epsilon=0.1, budget=None, cost_per_pull=1):
+    def __init__(self, n_arms, context_dim, theta, epsilon=0.1, budget=None, costs=1):
         """
         Defines a Linear Bandit instance where each arm is associated with a d-dimensional real-valued
         feature vector. The reward r_A for pulling arm A is given by: r_A = x_A^T.θ + Ɛ,
@@ -220,7 +221,7 @@ class Linear_MAB:
         :param theta: True parameter vector for the linear model
         :param epsilon: Standard deviation of the Gaussian noise added to the rewards
         """
-        super().__init__(n_arms, budget, cost_per_pull)
+        super().__init__(n_arms, budget, costs)
         self.context_dim = context_dim
         self.theta = theta
         self.epsilon = epsilon

@@ -4,7 +4,7 @@ Performance analysis of Causal Bandit algorithms
 ## Example usages
 ### 1. Generate SCM with parallel topology, 2 non-reward nodes and standard Gaussian noises:
     > Navigate to src/utils
-    > python SCM.py --graph_type parallel --n 2 --noise_types N(0,1) 
+    > python SCM.py --graph_type parallel --n 2 --noise_types 'N(0,1)' 
     >>> saves the generated SCM to outputs/SCMs/.. as well as the causal graph generated as part of the SCM to outputs/graphs/.. as JSON files
 ### 2. Genereate a visualization for the same SCM:
     > python SCM.py --graph_type parallel --n 2 --noise_types N(0,1) --plot

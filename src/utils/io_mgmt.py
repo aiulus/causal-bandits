@@ -57,26 +57,28 @@ def scm_args_to_filename(args, file_type, base_path):
 
 def make_do_suffix(do_list):
     suffix = "_do"
-
-    for item in do_list:
-        variable, value = item.strip('()').strip(' ').split(',')
-        suffix += f"{variable}-{value}"
+    if isinstance(do_list, dict): # FOR DEBUGGING ONLY
+        for item in do_list:
+            variable, value = item.strip('()').strip(' ').split(',')
+            suffix += f"{variable}-{value}"
     return suffix
 
 
 def parse_interventions(do_list):
     do_dict = {}
-    if not isinstance(do_list, list):
-        do_list = [do_list]
-    for intervention in do_list:
-        variable, value = intervention.strip('()').strip(' ').split(',')
-        do_dict[variable] = value
+    if isinstance(do_list, dict): # FOR DEBUGGING ONLY
+        if not isinstance(do_list, list):
+            do_list = [do_list]
+        for intervention in do_list:
+            variable, value = intervention.strip('()').strip(' ').split(',')
+            do_dict[variable] = value
 
     return do_dict
 
 
 def save_rewards_to_csv(rewards, filename):
     df = pd.DataFrame(rewards)
+    filename = filename + ".csv"
     df.to_csv(filename, index=False)
     print(f"Rewards saved to {filename}")
 
