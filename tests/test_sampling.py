@@ -17,7 +17,7 @@ def test_scm_sampling():
 
     scm = SCM(scm_input)
     n_samples = 10000
-    samples = scm.sample(n_samples)
+    samples = scm.sample_L1(n_samples)
 
     X_samples = samples["X"]
     Y_samples = samples["Y"]

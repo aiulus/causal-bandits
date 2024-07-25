@@ -169,11 +169,11 @@ class CausalRejectionSampling(CausalBanditAlgorithm):
             round_rewards = self.rewards[:, :self.T // self.n_arms]
             mean_rewards = np.mean(round_rewards, axis=1)
             arm_index = np.argmax(mean_rewards)
-        value = np.random.choice(self.do_values[arm_index] + [None])
-        return arm_index, value
 
-    def pull_arm(self, arm_index, value=None):
-        reward = super().pull_arm(arm_index, value)
+        return arm_index
+
+    def pull_arm(self, arm_index):
+        reward = super().pull_arm(arm_index)
         self.rewards[arm_index, len(self.rewards[arm_index][self.rewards[arm_index > 0]])] = reward
         if len(self.rewards[arm_index][self.rewards[arm_index] > 0]) == (self.T // self.n_arms):
             self.arm_indices = np.delete(self.arm_indices, np.where(self.arm_indices == arm_index))
