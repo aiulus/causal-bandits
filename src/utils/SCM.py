@@ -77,12 +77,6 @@ def parse_interventions(interventions):
 
     return interventions_dict
 
-class dynamicSCM:
-    def __init__(self, scm):
-        self.variables, self.G = scm.nodes, scm.G
-        self.lambda_functions = parse_functions(scm.F, scm.N)
-        self.lambda_noises = parse_noises(scm.N)
-
 
 # TODO: Extend to other than just fully-observed SCM's
 class SCM:
@@ -95,11 +89,10 @@ class SCM:
 
         Interventions can be perfect (constant value) or soft (stochastic function).
         """
-        if isinstance(interventions, dict): # FOR DEBUGGING ONLY
-            for variable, func in interventions.items():
-                lambda_string = f"lambda _: {func}"
-                self.interventions[variable] = func
-                self.F[variable] = lambda_string
+        for variable, func in interventions.items():
+            lambda_string = f"lambda _: {func}"
+            self.interventions[variable] = func
+            self.F[variable] = lambda_string
 
     def abduction(self, L1):
         """Infer the values of the exogenous variables given observational outputs"""
@@ -138,15 +131,12 @@ class SCM:
 
     def sample(self, n_samples, mode='observational', interventions=None):
         if mode == 'observational':
-            data_savepath = io_mgmt.append_counter('observational_data.csv')
-            sampling.sample_observational_distribution(self, n_samples, data_savepath)
+            data = sampling.sample_L1(self, n_samples)
         elif mode == 'interventional':
             if interventions is None:
                 raise ValueError("A set of interventions must be provided for L2-sampling.")
-            data_savepath = io_mgmt.append_counter('interventional_data.csv')
-            sampling.sample_interventional_distribution(self, n_samples, data_savepath, interventions)
+            data = sampling.sample_L2(self, n_samples, interventions)
 
-        data = io_mgmt.csv_to_dict(data_savepath)
         return data
 
     def visualize(self):
@@ -175,6 +165,7 @@ class SCM:
     @staticmethod
     def str_to_func(func_str):
         return eval(func_str)
+
 
 def main():
     parser = argparse.ArgumentParser("Structural Causal Model (SCM) operations.")

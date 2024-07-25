@@ -2,7 +2,7 @@ import numpy as np
 import sys
 from pathlib import Path
 
-import SCM, io_mgmt
+import SCM, io_mgmt, sampling
 
 path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
@@ -19,7 +19,7 @@ def create_bandit(bandit_type, **kwargs):
         'bernoulli': ['n_arms', 'p_true'],
         'gaussian': ['n_arms', 'means', 'variances', 'budget', 'costs'],
         'linear': ['n_arms', 'context_dim', 'theta', 'epsilon'],
-        'causal': ['n_arms', 'costs', 'budget',  'T', 'do_values', 'scm']
+        'causal': ['n_arms', 'costs', 'budget', 'T', 'do_values', 'scm']
     }
 
     if bandit_type not in bandit_classes:
@@ -97,33 +97,40 @@ class CausalBandit(Bandit):
         :param scm: Structural Causal Model
         :param reward_variable: The variable in graph G that represents the reward (Y)
         """
-        print(f"Parsing scm with followning properties: {scm.G.nodes}\n {scm.G.edges}\n {scm.N}") # Debug statement
+        print(f"Parsing scm with followning properties: {scm.G.nodes}\n {scm.G.edges}\n {scm.N}")  # Debug statement
         super().__init__(n_arms, costs, budget)
         print(f"Actually created bandit instance with: budget={budget}, costs={self.costs}")
         self.scm = scm
         self.reward_variable = 'Y'
         self.T = T
-        self.do_values = do_values
+        self.do_values = do_values if len(do_values) == n_arms else [do_values] * (n_arms + 1)
 
-
-    def _pull_arm_impl(self, interventions):
+    def _pull_arm_impl(self, arm_index):
         """
         Perform an atomic intervention by setting the specified variables to the given values.
         :param interventions: Dictionary with {variable_index : value_to_set_variable}
         """
-        if interventions:
-            self.scm.intervene(interventions)
-            self.scm.sample(1, mode='interventional',
-                            interventions=interventions)  # Update the SCM with the intervention
-        else:
-            self.scm.sample(1, mode='observational')
+        print(f"Current SCM: {self.scm.F}")  # Debug statement
+        value = self.do_values[arm_index]
+        intervention = f'(X{arm_index + 1},{value})'
+        # interventions = dict(intervention)
+        # intervention = {arm_index: value}
+        # self.scm.intervene(intervention)
+        # data = self.scm.sample_L1(1)
+        data = sampling.sample_interventional_distribution(self.scm, 1,
+                                                           "MAB_SCM_n3_parallel_graph_linear_functions_N(8,3).json",
+                                                           intervention)
+        reward = data['Y']
+        print(f"REWARD: {reward}")  # Debug statement
+        return reward
 
+    # TODO: Redundant
     def get_reward(self):
         """
         Get the reward value based on the current observed values.
         :return: Reward value
         """
-        observed_values = self.scm.sample(1)
+        observed_values = self.scm.sample_L1(1)
         return observed_values[self.reward_variable][0]
 
     def get_observed_values(self):
@@ -131,7 +138,7 @@ class CausalBandit(Bandit):
         Get the current observed values of all variables
         :return: Dictionary containing current observed values of all variables
         """
-        return self.scm.sample(1)
+        return self.scm.sample_L1(1)
 
     def expected_reward(self, interventions, sample_size=1000):
         """

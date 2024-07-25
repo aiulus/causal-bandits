@@ -66,12 +66,12 @@ def make_do_suffix(do_list):
 
 def parse_interventions(do_list):
     do_dict = {}
-    if isinstance(do_list, dict): # FOR DEBUGGING ONLY
-        if not isinstance(do_list, list):
-            do_list = [do_list]
-        for intervention in do_list:
-            variable, value = intervention.strip('()').strip(' ').split(',')
-            do_dict[variable] = value
+
+    if not isinstance(do_list, list):
+        do_list = [do_list]
+    for intervention in do_list:
+        variable, value = intervention.strip('()').strip(' ').split(',')
+        do_dict[variable] = value
 
     return do_dict
 

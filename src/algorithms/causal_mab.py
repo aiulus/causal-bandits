@@ -44,16 +44,11 @@ class CausalBanditAlgorithm:
 
     # TODO: Currenty strategy for modeling pulling an arm is an atomic intervention with value 0, do(X_i = 0),
     #  regardless of the arm's distribution
-    def pull_arm(self, arm_index, value=None):
-        if value is not None:
-            interventions = {arm_index: value}
-        else:
-            interventions = None
+    def pull_arm(self, arm_index):
+        value = self.do_values[arm_index]
 
-        self.bandit.pull_arm(arm_index[0])
-        reward = self.bandit.get_reward()
-
-        if self.budget is not None:
+        reward = self.bandit.pull_arm(arm_index)
+        if self.budget is not None and self.actions_left():
             self.remaining_budget -= self.costs[arm_index]
 
         return reward
@@ -92,16 +87,12 @@ class RandomCausalBandit(CausalBanditAlgorithm):
 
     def select_arm(self):
         arm_index = int(np.random.choice(self.n_arms))
-        print(f"Arms: {self.n_arms}")  # Debug statement
-        print(f"Arm index: {arm_index}")  # Debug statement
-        print(f"Do values: {self.do_values}")  # Debug statement
-        value = self.do_values[arm_index]
-        return arm_index, value
+        return arm_index
 
 
 class EpsilonGreedyCausalMAB(CausalBanditAlgorithm):
     def __init__(self, bandit, T, budget, costs, do_values, epsilon=0.1):
-        super().__init__(bandit, costs, T, budget, do_values)
+        super().__init__(bandit, T, budget, costs, do_values)
         self.epsilon = epsilon
         self.arm_values = np.zeros(self.n_arms)
         self.arm_counts = np.zeros(self.n_arms)
@@ -112,11 +103,11 @@ class EpsilonGreedyCausalMAB(CausalBanditAlgorithm):
         else:
             arm_index = np.argmax(self.arm_values)  # Exploitation
 
-        value = np.random.choice(self.do_values[arm_index] + [None])
-        return arm_index, value
+        # value = np.random.choice(self.do_values[arm_index] + [None])
+        return arm_index
 
     def pull_arm(self, arm_index, value=None):
-        reward = super().pull_arm(arm_index, value)
+        reward = super().pull_arm(arm_index)
         self.arm_counts[arm_index] += 1
         n = self.arm_counts[arm_index]
         value_estimate = self.arm_values[arm_index]
@@ -126,18 +117,17 @@ class EpsilonGreedyCausalMAB(CausalBanditAlgorithm):
 
 class CausalThompsonSampling(CausalBanditAlgorithm):
     def __init__(self, bandit, T, budget, costs, do_values):
-        super().__init__(bandit, costs, T, budget, do_values)
+        super().__init__(bandit, T, budget, costs, do_values)
         self.successes = np.zeros(self.n_arms)
         self.failures = np.zeros(self.n_arms)
 
     def select_arm(self):
         sampled_values = [beta.rvs(a=1 + self.successes[i], b=1 + self.failures[i]) for i in range(self.n_arms)]
         arm_index = np.argmax(sampled_values)
-        value = np.random.choice(self.do_values[arm_index] + [None])
-        return arm_index, value
+        return arm_index
 
-    def pull_arm(self, arm_index, value=None):
-        reward = super().pull_arm(arm_index, value)
+    def pull_arm(self, arm_index):
+        reward = super().pull_arm(arm_index)
         if reward == 1:
             self.successes[arm_index] += 1
         else:
@@ -147,7 +137,7 @@ class CausalThompsonSampling(CausalBanditAlgorithm):
 
 class CausalUCB(CausalBanditAlgorithm):
     def __init__(self, bandit, T, budget, costs, do_values):
-        super().__init__(bandit, costs, T, budget, do_values)
+        super().__init__(bandit, T, budget, costs, do_values)
         self.counts = np.zeros(self.n_arms)
         self.values = np.zeros(self.n_arms)
 
@@ -155,11 +145,10 @@ class CausalUCB(CausalBanditAlgorithm):
         total_counts = np.sum(self.counts)
         ucb_values = self.values + np.sqrt((2 * np.log(total_counts + 1)) / (self.counts + 1))
         arm_index = np.argmax(ucb_values)
-        value = np.random.choice(self.do_values[arm_index] + [None])
-        return arm_index, value
+        return arm_index
 
-    def pull_arm(self, arm_index, value=None):
-        reward = super().pull_arm(arm_index, value)
+    def pull_arm(self, arm_index):
+        reward = super().pull_arm(arm_index)
         self.counts[arm_index] += 1
         n = self.counts[arm_index]
         value_estimate = self.values[arm_index]
@@ -169,7 +158,7 @@ class CausalUCB(CausalBanditAlgorithm):
 
 class CausalRejectionSampling(CausalBanditAlgorithm):
     def __init__(self, bandit, T, budget, costs, do_values):
-        super().__init__(bandit, costs, T, budget, do_values)
+        super().__init__(bandit, T, budget, costs, do_values)
         self.rewards = np.zeros((self.n_arms, T // self.n_arms))
         self.arm_indices = np.arange(self.n_arms)
 

@@ -44,9 +44,6 @@ def evaluate_structural_equation(function_string, data_dict, noise_dict):
     noise_vars = re.findall(r'N\w+', function_string)
     noise_vars = [var[2:] for var in noise_vars]
 
-    print(f"Noise variables: {noise_vars}")  # Debug statement
-    print(f"Input variables: {input_vars}")  # Debug statement
-
     # TODO: ATTENTION! Currently assuming additive noises. Due to storage preferences,
     #  the noises don't appear in the function strings contained in the .json representation of the SCM.
 
@@ -55,7 +52,7 @@ def evaluate_structural_equation(function_string, data_dict, noise_dict):
     # Define the lambda function
     SE_lambda = eval(function_string)
 
-    print(f"DATA DICTIONARY: {data_dict}") # Debug statement
+    print(f"DATA DICTIONARY: {data_dict}")  # Debug statement
 
     # Prepare the arguments
     args = [data_dict[var] for var in input_vars if var != '_']
@@ -87,48 +84,39 @@ def csv_to_dict(path):
     return data
 
 
-def sample_observational_distribution(scm, n_samples, data_savepath):
+def sample_L1(scm, n_samples):
     noise_data = {}
+    data = {}
 
     for X_j in scm.G.nodes:
-        print(f"Parsing noise for {X_j}")
         n_j_str = scm.N[X_j]
-        print(f"Obtained string representation of N_{X_j}: {n_j_str}")
+
         samples = noises.generate_distribution(n_j_str)(n_samples)
         noise_data[X_j] = samples
 
-    print(f"Noise data: {noise_data}")
-
-    data = {}
-
     for X_j in nx.topological_sort(scm.G):
-        print(f"Next node is: {X_j}")
         if scm.G.in_degree[X_j] == 0:
             data[X_j] = noise_data[X_j]
         else:
             f_j_str = scm.F[X_j]
-            print(f"Now evaluating {f_j_str}...")
             samples = evaluate_structural_equation(f_j_str, data, noise_data)
             data[X_j] = samples
 
-    print(f"Sampled data: {data}")
-    save_to_csv(data, data_savepath)
-    print(f"Data saved to {data_savepath}")
+    return data
 
 
-def sample_interventional_distribution(scm, n_samples, data_savepath, interventions):
+def sample_L2(scm, n_samples, interventions):
+    save_path = "L2_samples_"
     interventions_dict = io_mgmt.parse_interventions(interventions)
     scm.intervene(interventions_dict)
-    save_path = data_savepath.strip('.json')
     do_suffix = io_mgmt.make_do_suffix(interventions)
     save_path = save_path + do_suffix + ".json"
-    print(f"Attempting to save new SCM to: {save_path}") # Debug statement
+    print(f"Attempting to save new SCM to: {save_path}")  # Debug statement
     scm.save_to_json(save_path)
     data_savepath = f"{PATH_DATA}/{save_path}".replace('.json', '.csv')
 
     noise_data = {}
-    print(f"INTERVENTIONS: {interventions_dict}") # Debug statement
-
+    print(f"INTERVENTIONS: {interventions_dict}")  # Debug statement
 
     for X_j in scm.G.nodes:
         if X_j in interventions_dict:
@@ -160,6 +148,80 @@ def sample_interventional_distribution(scm, n_samples, data_savepath, interventi
     print(f"Sampled data: {data}")
     save_to_csv(data, data_savepath)
     print(f"Data saved to {data_savepath}")
+    return data
+
+
+def sample_observational_distribution(scm, n_samples, data_savepath):
+    noise_data = {}
+
+    for X_j in scm.G.nodes:
+        print(f"Parsing noise for {X_j}")  # Debug statement
+        n_j_str = scm.N[X_j]
+        print(f"Obtained string representation of N_{X_j}: {n_j_str}")  # Debug statement
+        samples = noises.generate_distribution(n_j_str)(n_samples)
+        noise_data[X_j] = samples
+
+    data = {}
+
+    for X_j in nx.topological_sort(scm.G):
+        if scm.G.in_degree[X_j] == 0:
+            data[X_j] = noise_data[X_j]
+        else:
+            f_j_str = scm.F[X_j]
+            print(f"Now evaluating {f_j_str}...")  # Debug statement
+            samples = evaluate_structural_equation(f_j_str, data, noise_data)
+            data[X_j] = samples
+
+    print(f"Sampled data: {data}")  # Debug statement
+
+    save_to_csv(data, data_savepath)
+    print(f"Data saved to {data_savepath}")  # Debug statement
+
+    return data
+
+
+def sample_interventional_distribution(scm, n_samples, data_savepath, interventions):
+    interventions_dict = io_mgmt.parse_interventions(interventions)
+    scm.intervene(interventions_dict)
+    save_path = data_savepath.strip('.json')
+    do_suffix = io_mgmt.make_do_suffix(interventions)
+    save_path = save_path + do_suffix + ".json"
+    print(f"Attempting to save new SCM to: {save_path}")  # Debug statement
+    scm.save_to_json(save_path)
+    data_savepath = f"{PATH_DATA}/{save_path}".replace('.json', '.csv')
+
+    noise_data = {}
+    print(f"INTERVENTIONS: {interventions_dict}")  # Debug statement
+
+    for X_j in scm.G.nodes:
+        if X_j in interventions_dict:
+            continue
+        print(f"Parsing noise for {X_j}")
+        n_j_str = scm.N[X_j]
+        samples = noises.generate_distribution(n_j_str)(n_samples)
+        noise_data[X_j] = samples
+
+    data = {}
+
+    for X_j in nx.topological_sort(scm.G):
+        if X_j not in interventions_dict and scm.G.in_degree[X_j] == 0:
+            data[X_j] = noise_data[X_j]
+        else:
+            f_j_str = scm.F[X_j]
+            print(f"Now evaluating {f_j_str}...")
+            samples = evaluate_structural_equation(f_j_str, data, noise_data)
+            if X_j in interventions_dict:
+                samples = np.repeat(samples, n_samples)
+                data[X_j] = samples
+                print(f"Not using noise for {X_j}")
+            else:
+                data[X_j] = samples + noise_data[X_j]
+                print(f"Additive noise considered for variable {X_j}: {noise_data[X_j]}")
+
+    print(f"Sampled data: {data}")
+    save_to_csv(data, data_savepath)
+    print(f"Data saved to {data_savepath}")
+    return data
 
 
 def main():

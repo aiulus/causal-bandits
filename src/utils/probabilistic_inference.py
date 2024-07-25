@@ -16,13 +16,13 @@ PATH_DATA = "../../outputs/data"
 
 # Draws samples from the observational distribution of the provided SCM
 def sample_L1(scm, n_samples):
-    return scm.sample(n_samples)
+    return scm.sample_L1(n_samples)
 
 
 # Draws samples from the interventional distribution of the provided SCM
 def sample_L2(scm, interventions, n_samples):
     scm.intervene(interventions)
-    return scm.sample(n_samples)
+    return scm.sample_L1(n_samples)
 
 
 # Draws samples from the counterfactual distribution of the provided SCM
