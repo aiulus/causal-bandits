@@ -1,0 +1,66 @@
+{
+  "nodes": [
+    "X1",
+    "X2",
+    "X3",
+    "X4",
+    "X5",
+    "Y"
+  ],
+  "edges": [
+    [
+      "X1",
+      "X2"
+    ],
+    [
+      "X2",
+      "X3"
+    ],
+    [
+      "X3",
+      "X4"
+    ],
+    [
+      "X4",
+      "X5"
+    ],
+    [
+      "X5",
+      "Y"
+    ]
+  ],
+  "functions": {
+    "X1": "lambda : N_X1",
+    "X2": "lambda X1: 1.5*X1**1 + N_X2",
+    "X3": "lambda X2: 1.0*X2**1 + N_X3",
+    "X4": "lambda X3: 2.0*X3**2 + N_X4",
+    "X5": "lambda X4: -2.0*X4**1 + N_X5",
+    "Y": "lambda X5: 2.0*X5**1 + N_Y"
+  },
+  "noise": {
+    "X1": [
+      "exponential",
+      2.0
+    ],
+    "X2": [
+      "exponential",
+      2.0
+    ],
+    "X3": [
+      "exponential",
+      2.0
+    ],
+    "X4": [
+      "exponential",
+      2.0
+    ],
+    "X5": [
+      "exponential",
+      2.0
+    ],
+    "Y": [
+      "exponential",
+      2.0
+    ]
+  }
+}

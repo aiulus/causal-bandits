@@ -1,0 +1,50 @@
+{
+  "nodes": [
+    "X1",
+    "X2",
+    "X3",
+    "Y"
+  ],
+  "edges": [
+    [
+      "X1",
+      "Y"
+    ],
+    [
+      "X2",
+      "Y"
+    ],
+    [
+      "X3",
+      "Y"
+    ]
+  ],
+  "functions": {
+    "X1": "lambda : N_X1",
+    "X2": "lambda : N_X2",
+    "X3": "lambda : N_X3",
+    "Y": "lambda X1, X2, X3: -2.0 * X1 + 1.5 * X2 + 2.0 * X3 + N_Y"
+  },
+  "noise": {
+    "X1": [
+      "gaussian",
+      7.0,
+      1.0
+    ],
+    "X2": [
+      "gaussian",
+      7.0,
+      1.0
+    ],
+    "X3": [
+      "gaussian",
+      7.0,
+      1.0
+    ],
+    "Y": [
+      "gaussian",
+      7.0,
+      1.0
+    ]
+  }
+}
